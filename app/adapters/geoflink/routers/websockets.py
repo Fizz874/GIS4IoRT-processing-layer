@@ -57,34 +57,69 @@ def websocket_documentation():
     ### **Connection URL:**
     `ws://<host>:<port>/geoflink/ws`
 
+    ---
+
     ### **Supported Commands (JSON Payload):**
 
-    **1. Subscribe to a configuration stream:**
+    #### **1. Subscribe to a configuration stream**
     Start receiving real-time alerts for a specific job configuration.
+    
+    **Request:**
     ```json
     {
         "action": "subscribe",
         "config_name": "your_config_name"
     }
     ```
+    **Response (Success):**
+    ```json
+    {
+        "status": "subscribed",
+        "topic": "output_your_config_name"
+    }
+    ```
 
-    **2. Unsubscribe from a stream:**
+    #### **2. Unsubscribe from a stream**
     Stop receiving alerts for a specific configuration.
+    
+    **Request:**
     ```json
     {
         "action": "unsubscribe",
         "config_name": "your_config_name"
     }
     ```
+    **Response (Success):**
+    ```json
+    {
+        "status": "unsubscribed",
+        "topic": "output_your_config_name"
+    }
+    ```
 
-    **3. Heartbeat (Ping):**
+    #### **3. Heartbeat (Ping)**
     Keep the connection alive and prevent idle timeouts.
+    
+    **Request:**
     ```json
     {
         "action": "ping"
     }
     ```
-    _Server response:_ `{"pong": true}`
+    **Response:**
+    ```json
+    {"pong": true}
+    ```
+
+    ---
+
+    ### **Error Responses:**
+    If parameters are missing or JSON is invalid:
+    ```json
+    {
+        "error": "Missing config_name"
+    }
+    ```
     """
     return JSONResponse(
         content={
