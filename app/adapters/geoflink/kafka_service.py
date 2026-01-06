@@ -94,16 +94,32 @@ class KafkaService:
             
         finally:
             await admin.close()
+    
+    async def send_robot_assignment(self, robot_id: str, zone_ids: list[str], topic: str):
 
-
-    async def send_robot(self, robot_data, topic: str):
-        msg = f"ROBOT:ALLOW:{robot_data.id}"
-        return await self._send_message(msg, topic)
+        if not zone_ids:
+            return 
+            
+        zones_str = ",".join(zone_ids)
+        msg = f"ROBOT:ALLOW:{robot_id}:{zones_str}"
         
-    async def send_robot_removal(self, robot_id: str, topic: str):
+        return await self._send_message(msg, topic)
+
+    async def send_robot_unassignment(self, robot_id: str, zone_ids: list[str], topic: str):
+        if not zone_ids:
+            return
+
+        zones_str = ",".join(zone_ids)
+        msg = f"ROBOT:BLOCK:{robot_id}:{zones_str}"
+        
+        return await self._send_message(msg, topic)
+
+    # Bans robot from all his assignments
+    async def send_robot_ban(self, robot_id: str, topic: str):
         msg = f"ROBOT:BLOCK:{robot_id}"
         return await self._send_message(msg, topic)
-    
+
+
     async def send_zone(self, zone_data, topic: str):
         msg = f"ZONE:ADD:{zone_data.id}:{zone_data.geo}"
         return await self._send_message(msg, topic)

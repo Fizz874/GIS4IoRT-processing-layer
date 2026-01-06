@@ -8,8 +8,6 @@ from app.config import settings
 DB_NAME = settings.GEOFLINK_DB_NAME
 logger = logging.getLogger("uvicorn.info")
 
-
-
 def get_connection():
     """Tworzy połączenie z włączonymi Foreign Keys i Row Factory"""
     conn = sqlite3.connect(DB_NAME)
@@ -51,9 +49,7 @@ def init_db():
                     zone_id TEXT,
                     config_name TEXT,           
                     FOREIGN KEY(config_name) REFERENCES configurations(name) ON DELETE CASCADE,
-                    --UNIQUE(robot_id, zone_id, config_name)
-                    UNIQUE(config_name, robot_id),
-                    UNIQUE(config_name, zone_id)
+                    UNIQUE(robot_id, zone_id, config_name)
                 );
             ''')
             logger.info("Database initialized successfully.")
@@ -198,12 +194,13 @@ def add_geofence_assignment(robot_id: str, zone_id: str, config_name: str):
         logger.error(f"Error adding assignment: {e}")
         raise
 
-def remove_geofence_assignment(robot_id: Optional[str], zone_id: Optional[str], config_name: str):
+def remove_geofence_assignment(robot_id: str, zone_id: str, config_name: str) -> bool:
     with get_connection() as conn:
-        conn.execute(
-            "DELETE FROM geofence_assignments WHERE robot_id IS ? AND zone_id IS ? AND config_name=?",
+        cursor = conn.execute(
+            "DELETE FROM geofence_assignments WHERE robot_id = ? AND zone_id = ? AND config_name = ?",
             (robot_id, zone_id, config_name)
-        )
+        )        
+        return cursor.rowcount > 0
 
 def get_geofence_assignments(config_name: str) -> List[dict]:
     with get_connection() as conn:
@@ -221,13 +218,12 @@ def get_geofence_assignment(robot_id: str, zone_id: str, config_name: str) -> di
     
         query = """
             SELECT * FROM geofence_assignments 
-            WHERE (config_name=? 
-            AND (robot_id=? OR (robot_id IS NULL AND ? IS NULL)))
-            OR (config_name=?
-            AND (zone_id=? OR (zone_id IS NULL AND ? IS NULL))) 
+            WHERE config_name=? 
+            AND robot_id=? 
+            AND zone_id=?
         """
 
-        params = (config_name, robot_id, robot_id,config_name, zone_id, zone_id)
+        params = (config_name, robot_id, zone_id)
         row = conn.execute(query, params).fetchone()
 
         return dict(row) if row else None

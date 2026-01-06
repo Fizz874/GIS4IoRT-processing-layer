@@ -9,9 +9,6 @@ from app.adapters.geoflink.kafka_service import KafkaService, get_kafka_service
 router = APIRouter()
 logger = logging.getLogger("uvicorn.info")
 
-# in this configuration if both zone and robot are not null in one request they are tied together 
-# - deletion of one will also delete the other one
-
 @router.get("/geofence/{config_name}", tags=["Geoflink: Geofence"])
 def list_geofence_rules(config_name: str):
 
@@ -82,12 +79,15 @@ async def add_geofence_rule(
 
     logger.info(f"Sending configuration payload to Kafka topic: {topic}")
 
-    if data.robot_id:
-        await kafka.send_robot(robot_obj, topic)
-
-    if data.zone_id:
+    if zone_obj:
         await kafka.send_zone(zone_obj, topic)
 
+    
+    await kafka.send_robot_assignment(
+        robot_id=data.robot_id, 
+        zone_ids=[data.zone_id], 
+        topic=topic
+    )
 
     database.add_geofence_assignment(data.robot_id, data.zone_id, data.config_name)
     
@@ -134,10 +134,12 @@ async def remove_geofence_rule(
 
         logger.info(f"Sending removal signals to Kafka topic: {topic}")
 
-        if data.robot_id:
-            await kafka.send_robot_removal(data.robot_id, topic)
-        if data.zone_id:
-            await kafka.send_zone_removal(data.zone_id,topic)
+        
+        await kafka.send_robot_unassignment(
+        robot_id=data.robot_id, 
+        zone_ids=[data.zone_id], 
+        topic=topic
+        )
 
     database.remove_geofence_assignment(data.robot_id, data.zone_id, data.config_name)
     

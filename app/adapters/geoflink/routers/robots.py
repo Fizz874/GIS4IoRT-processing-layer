@@ -40,6 +40,7 @@ async def deregister_robot(
     active_assignments = database.find_all_jobs_for_robot(robot_id)
     
     configs_to_check = set()
+    sent_topics = set() 
 
     for item in active_assignments:
         config_name = item['config_name']
@@ -48,10 +49,11 @@ async def deregister_robot(
         state = database.get_config_state(config_name)
         if state:
             topic = state['control_topic']
-           
-            logger.info(f"Sending robot removal signal to topic: {topic}")
-
-            await kafka.send_robot_removal(robot_id, topic)
+            
+            if topic not in sent_topics:
+                logger.info(f"Sending robot ban signal to topic: {topic}")
+                await kafka.send_robot_ban(robot_id, topic)
+                sent_topics.add(topic)
 
             database.remove_geofence_assignment(robot_id, item['zone_id'], config_name)
 
@@ -67,5 +69,4 @@ async def deregister_robot(
         "robot_id": robot_id,
         "stopped_assignments": len(active_assignments)
     }
-
 

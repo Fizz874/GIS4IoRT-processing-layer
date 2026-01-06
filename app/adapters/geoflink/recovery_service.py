@@ -4,7 +4,7 @@ from app.adapters.geoflink import database
 from .consumer_manager import consumer_manager
 from .kafka_service import kafka_service
 from .flink_service import get_flink_service
-from .schemas import RobotCreate, ZoneCreate
+from .schemas import ZoneCreate
 
 logger = logging.getLogger("uvicorn.info")
 
@@ -59,24 +59,24 @@ async def restore_application_state():
 
 async def reload_assignments_to_kafka(config_name: str, topic: str, assignments: list):
 
-    unique_robot_ids = set()
     unique_zone_ids = set()
+    robot_zone_map = {}
 
     for assignment in assignments:
-        if assignment['robot_id']:
-            unique_robot_ids.add(assignment['robot_id'])
-        if assignment['zone_id']:
-            unique_zone_ids.add(assignment['zone_id'])
+        r_id = assignment['robot_id']
+        z_id = assignment['zone_id']
 
-    logger.info(f"Sending {len(unique_robot_ids)} robots and {len(unique_zone_ids)} zones to '{topic}'")
+        if z_id:
+            unique_zone_ids.add(z_id)
 
-    for robot_id in unique_robot_ids:
-        try:
-            robot_data = database.get_robot(robot_id)
-            if robot_data:
-                await kafka_service.send_robot(RobotCreate(**robot_data), topic)
-        except Exception as e:
-            logger.error(f"Failed to replay robot {robot_id}: {e}")
+        if r_id and z_id:
+            if r_id not in robot_zone_map:
+                robot_zone_map[r_id] = []
+            robot_zone_map[r_id].append(z_id)
+
+    logger.info(f"Reloading state: {len(unique_zone_ids)} zones and permissions for {len(robot_zone_map)} robots to '{topic}'")
+    
+    
 
     for zone_id in unique_zone_ids:
         try:
@@ -85,3 +85,19 @@ async def reload_assignments_to_kafka(config_name: str, topic: str, assignments:
                 await kafka_service.send_zone(ZoneCreate(**zone_data), topic)
         except Exception as e:
             logger.error(f"Failed to replay zone {zone_id}: {e}")
+
+    for robot_id, zones_list in robot_zone_map.items():
+        try:
+            robot_data = database.get_robot(robot_id)
+            
+            if robot_data:
+                await kafka_service.send_robot_assignment(
+                    robot_id=robot_id, 
+                    zone_ids=zones_list, 
+                    topic=topic
+                )
+            else:
+                logger.warning(f"Skipping assignment for deleted robot {robot_id}")
+                
+        except Exception as e:
+            logger.error(f"Failed to replay permissions for robot {robot_id}: {e}")
