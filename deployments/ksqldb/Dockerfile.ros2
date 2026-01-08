@@ -1,0 +1,16 @@
+# ROS2 base image
+FROM ros:humble-ros-base
+
+# Install pip and the kafka-python library
+RUN apt-get update && apt-get install -y \
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install the Python Kafka client
+RUN pip3 install kafka-python
+
+# Set up a working directory
+WORKDIR /ros2_ws
+
+# Default command to keep the container alive
+CMD ["/bin/bash", "-c", "tail -f /dev/null"]
