@@ -23,8 +23,7 @@ class GeofenceConfig(BaseJobConfig):
     gridMaxX: float = 3.436
     gridMaxY: float = 46.342
     inputTopicName: str = "multi_gps_fix"
-    approximateQuery: bool = False
-    omegaDuration: int = Field(default=1, ge=1, description="Window size and slide step in seconds")
+    range: float = Field(default=0.0, ge=0)
 
     @model_validator(mode='after')
     def check_coordinates(self):
@@ -48,14 +47,13 @@ class GeofenceConfig(BaseJobConfig):
             "--gridMaxX", str(self.gridMaxX),
             "--gridMaxY", str(self.gridMaxY),
             "--inputTopicName", self.inputTopicName,
-            "--approximateQuery", str(self.approximateQuery).lower(), 
-            "--omegaDuration", str(self.omegaDuration),
+            "--range", str(self.range),
             "--outputTopicName", output_topic,
             "--controlTopicName", control_topic
         ]
 
     def get_entry_class(self) -> str:
-        return "GIS4IoRT.jobs.ParcelControlStreamingJob"
+        return "GIS4IoRT.jobs.GeofencingStreamingJob"
 
 # Example of a theoretical different query - just for reference
 
@@ -75,8 +73,8 @@ JobConfigUnion = Union[GeofenceConfig] #, CollisionConfig
 
 
 class GeofenceRequest(BaseModel):
-    robot_id: str = Field(..., min_length=1, description="ID robota z bazy danych")
-    zone_id: str = Field(..., min_length=1, description="ID strefy z bazy danych")
+    robot_id: str = Field(..., min_length=1)
+    zone_id: str = Field(..., min_length=1)
     config_name: str = Field(..., min_length=1)
 
 

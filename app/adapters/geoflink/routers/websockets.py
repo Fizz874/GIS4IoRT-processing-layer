@@ -3,6 +3,8 @@ from fastapi.responses import JSONResponse
 import json
 import logging
 from app.adapters.geoflink.websocket_manager import websocket_manager
+from app.adapters.geoflink import database
+
 
 router = APIRouter()
 logger = logging.getLogger("uvicorn.info")
@@ -21,6 +23,14 @@ async def websocket_endpoint(websocket: WebSocket):
 
                 if action == "subscribe":
                     if config_name:
+
+                        state = database.get_config_state(config_name)
+                        if not state:
+                            error_msg = {"status": "error", "message": f"Config '{config_name}' does not exist"}
+                            await websocket.send_text(json.dumps(error_msg))
+                            continue
+
+
                         target_topic = f"output_{config_name}"
                         await websocket_manager.subscribe(websocket, target_topic)
                         await websocket.send_text(json.dumps({"status": "subscribed", "topic": target_topic}))
@@ -39,6 +49,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
             except json.JSONDecodeError:
                 logger.warning("Received invalid JSON from client")
+                await websocket.send_text(json.dumps({"error": "Invalid JSON format"}))
                 
     except WebSocketDisconnect:
         websocket_manager.disconnect(websocket)
