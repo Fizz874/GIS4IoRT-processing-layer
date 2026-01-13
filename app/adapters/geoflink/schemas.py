@@ -1,6 +1,8 @@
 from pydantic import BaseModel, Field, model_validator, validator
 from typing import List, Literal, Union, Optional
 import re
+import json
+import base64
 
 class BaseJobConfig(BaseModel):
     name: str
@@ -23,7 +25,7 @@ class GeofenceConfig(BaseJobConfig):
     gridMaxX: float = 3.436
     gridMaxY: float = 46.342
     inputTopicName: str = "multi_gps_fix"
-    range: float = Field(default=0.0, ge=0)
+    range: float = Field(default=0.0000001, gt=0)
 
     @model_validator(mode='after')
     def check_coordinates(self):
@@ -35,25 +37,92 @@ class GeofenceConfig(BaseJobConfig):
 
 
     def to_flink_args(self, control_topic: str, output_topic: str) -> list[str]:
-        return [
-            "--parallelism", str(self.parallelism),
-            "--bootStrapServers", self.bootStrapServers,
-            "--localWebUi", str(self.localWebUi).lower(),
+       
+        config_dict = {
+            "parallelism": self.parallelism,
+            "bootStrapServers": self.bootStrapServers,
+            "localWebUi": self.localWebUi,  
+            "configName": self.name,
 
-            "--cellLengthMeters", str(self.cellLengthMeters),
-            "--uniformGridSize", str(self.uniformGridSize),
-            "--gridMinX", str(self.gridMinX),
-            "--gridMinY", str(self.gridMinY),
-            "--gridMaxX", str(self.gridMaxX),
-            "--gridMaxY", str(self.gridMaxY),
-            "--inputTopicName", self.inputTopicName,
-            "--range", str(self.range),
-            "--outputTopicName", output_topic,
-            "--controlTopicName", control_topic
+            "cellLengthMeters": self.cellLengthMeters,
+            "uniformGridSize": self.uniformGridSize,
+            "gridMinX": self.gridMinX,
+            "gridMinY": self.gridMinY,
+            "gridMaxX": self.gridMaxX,
+            "gridMaxY": self.gridMaxY,
+            
+
+            "inputTopicName": self.inputTopicName,
+            "outputTopicName": output_topic,
+            "controlTopicName": control_topic,
+            
+            "radius": self.range  
+        }
+
+        json_str = json.dumps(config_dict)
+
+        base64_config = base64.b64encode(json_str.encode('utf-8')).decode('utf-8')
+
+        return [
+            "--configBase64", base64_config
         ]
 
     def get_entry_class(self) -> str:
         return "GIS4IoRT.jobs.GeofencingStreamingJob"
+    
+
+class SensorProximityConfig(BaseJobConfig):
+    type: Literal["SENSOR"]
+    
+    cellLengthMeters: float = Field(default=0, ge=0)
+    uniformGridSize: int = Field(default=100, ge=0)
+    gridMinX: float = 3.430
+    gridMinY: float = 46.336
+    gridMaxX: float = 3.436
+    gridMaxY: float = 46.342
+
+    inputTopicName: str = "multi_gps_fix" 
+    sensorTopicName: str = "sensor_proximity"   
+    
+    @model_validator(mode='after')
+    def check_coordinates(self):
+        if self.gridMinX >= self.gridMaxX:
+            raise ValueError(f"gridMinX ({self.gridMinX}) must be smaller than gridMaxX ({self.gridMaxX})")
+        if self.gridMinY >= self.gridMaxY:
+            raise ValueError(f"gridMinY ({self.gridMinY}) must be smaller than gridMaxY ({self.gridMaxY})")
+        return self
+
+    def to_flink_args(self, control_topic: str, output_topic: str) -> List[str]:
+
+        config_dict = {
+            "parallelism": self.parallelism,
+            "bootStrapServers": self.bootStrapServers,
+            "localWebUi": self.localWebUi,
+            "configName": self.name, 
+
+            "cellLengthMeters": self.cellLengthMeters,
+            "uniformGridSize": self.uniformGridSize,
+            "gridMinX": self.gridMinX,
+            "gridMinY": self.gridMinY,
+            "gridMaxX": self.gridMaxX,
+            "gridMaxY": self.gridMaxY,
+            
+            "inputTopicName": self.inputTopicName,
+            "sensorTopicName": self.sensorTopicName, 
+            "outputTopicName": output_topic,
+            "controlTopicName": control_topic
+        }
+
+        json_str = json.dumps(config_dict)
+        base64_config = base64.b64encode(json_str.encode('utf-8')).decode('utf-8')
+
+        return [
+            "--configBase64", base64_config
+        ]
+
+    def get_entry_class(self) -> str:
+        return "GIS4IoRT.jobs.SensorProximityStreamingJob"
+
 
 # Example of a theoretical different query - just for reference
 
@@ -69,14 +138,29 @@ class GeofenceConfig(BaseJobConfig):
 #             "--controlTopicName", control_topic
 #         ]
 
-JobConfigUnion = Union[GeofenceConfig] #, CollisionConfig
+JobConfigUnion = Union[GeofenceConfig, SensorProximityConfig] #, CollisionConfig
 
-
+# geofence
 class GeofenceRequest(BaseModel):
     robot_id: str = Field(..., min_length=1)
     zone_id: str = Field(..., min_length=1)
     config_name: str = Field(..., min_length=1)
 
+
+# sensor proximity
+
+class RobotRequest(BaseModel):
+    config_name: str = Field(..., min_length=1)
+    robot_id: str = Field(..., min_length=1)
+
+class SensorRequest(BaseModel):
+    sensor_id: str = Field(..., min_length=1)
+    radius: float = Field(gt=0)
+    humidity_threshold: float = Field(ge=0, le=100)
+    config_name: str = Field(..., min_length=1)
+
+
+   
 
     
 # for SQL

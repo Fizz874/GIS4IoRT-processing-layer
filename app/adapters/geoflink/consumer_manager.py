@@ -42,10 +42,11 @@ class ConsumerManager:
             except Exception as e:
                 logger.warning(f"Attempt {attempt}/{max_retries} failed to start consumer for {topic_name}: {repr(e)}")
                 
-                try:
-                    await consumer.stop()
-                except:
-                    pass
+                if consumer:
+                    try:
+                        await asyncio.wait_for(consumer.stop(), timeout=5.0)
+                    except:
+                        pass
                 
                 if attempt == max_retries:
                     logger.error(f"Failed to start consumer for '{topic_name}' after {max_retries} attempts.")                    
