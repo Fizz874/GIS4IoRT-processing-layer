@@ -26,6 +26,7 @@ services:
     network_mode: host
     container_name: ros_bridge
     volumes:
+      - ./data:/app/data
       - ./kafka_bridge/multi_robot_kafka_bridge.py:/app/multi_robot_kafka_bridge.py
     env_file: .env
     command: ["python3", "/app/multi_robot_kafka_bridge.py", "--ros-args", "-p", "robot_list:=['leader', 'follower']", "-p", "kafka_bootstrap_servers:=localhost:9092"]

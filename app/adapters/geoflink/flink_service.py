@@ -24,14 +24,6 @@ class FlinkService:
         if not job_id: 
             return False
 
-        ALIVE_STATES = [
-            'RUNNING', 
-            'RESTARTING', 
-            'CREATED', 
-            'INITIALIZING', 
-            'RECONCILING'
-        ]
-
         async with httpx.AsyncClient(timeout=3.0) as client:
             try:
                 resp = await client.get(f"{self.base_url}/jobs/{job_id}")
@@ -41,7 +33,7 @@ class FlinkService:
                 
                 if resp.status_code == 200:
                     state = resp.json().get('state')
-                    return state in ALIVE_STATES
+                    return state == 'RUNNING'
                 
                 return False
 
@@ -192,7 +184,15 @@ class FlinkService:
                 should_stop = True
             else:
                 logger.debug(f"Checking stop condition for '{config_name}' (SENSOR): Pair exists. KEEP RUNNING.")
-
+        
+        elif config_type == 'COLLISION':
+            robots = database.get_robot_assignments(config_name)
+            
+            if len(robots) == 0:
+                logger.info(f"Checking stop condition for '{config_name}' (COLLISION): Robot count=0 -> STOP REQUIRED")
+                should_stop = True
+            else:
+                logger.debug(f"Checking stop condition for '{config_name}' (COLLISION): {len(robots)} robots active. KEEP RUNNING.")
         else: 
             count = database.count_active_assignments(config_name)
             if count == 0:

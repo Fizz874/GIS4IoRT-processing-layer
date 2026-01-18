@@ -1,7 +1,7 @@
 import rclpy
 from rclpy.node import Node
 from visualization_msgs.msg import Marker
-from geometry_msgs.msg import Point
+from geometry_msgs.msg import Point, Pose
 from builtin_interfaces.msg import Duration
 from sensor_msgs.msg import NavSatFix
 import pandas as pd
@@ -10,40 +10,52 @@ from shapely.ops import unary_union
 import binascii
 from pyproj import Transformer
 import os
-from math import sqrt
-from functools import partial  
-import json                      
 from math import sqrt, cos, sin, pi
+from functools import partial
+import json
 
 class CsvToRvizMarkers(Node):
     def __init__(self):
         super().__init__('csv_to_rviz_markers')
         
-
         self.publisher = self.create_publisher(Marker, 'visualization_marker', 10)
         
         self.csv_path = os.path.expanduser('/app/data/parcelles.csv')
-        self.sensor_config_path = os.path.expanduser('/app/data/sensor_config.json')
+        self.sensor_config_path = os.path.expanduser('/app/data/sensor_config_updated.json')
         self.transformer = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True)
         self.global_centroid = None
+        self.cached_df = None
 
+        # --- PARAMETRY ---
         self.declare_parameter('robot_list', ['leader', 'follower'])
         self.robot_list = self.get_parameter('robot_list').get_parameter_value().string_array_value
 
         self.declare_parameter('centroid_shape_name', '1 MONT')
         self.centroid_shape_name = self.get_parameter('centroid_shape_name').get_parameter_value().string_value
+        
+        self.declare_parameter('target_parcel_id', 40)
+        self.target_parcel_id = self.get_parameter('target_parcel_id').get_parameter_value().integer_value
 
-    
+        self.robot_radius = 3.0
+        self.VISUAL_BUFFER = 0.5 
+
         self.robot_paths = {}
+        self.robot_colors = {}
         self.subscriptions_list = [] 
+        
+        # --- PRE-KALKULACJA KSZTAŁTU OKRĘGU ---
+        self.circle_template_points = []
+        num_segments = 64
+        calc_radius = self.robot_radius + self.VISUAL_BUFFER
+        for i in range(num_segments + 1):
+            angle = (i / num_segments) * 2 * pi
+            px = calc_radius * cos(angle)
+            py = calc_radius * sin(angle)
+            self.circle_template_points.append(Point(x=px, y=py, z=0.0))
 
         colors = [
-            (0.0, 0.0, 1.0), # Blue
-            (0.0, 1.0, 0.0), # Green
-            (1.0, 0.0, 0.0), # Red
-            (1.0, 1.0, 0.0), # Yellow
-            (0.0, 1.0, 1.0), # Cyan
-            (1.0, 0.0, 1.0)  # Magenta
+            (0.0, 0.0, 1.0), (0.0, 1.0, 0.0), (1.0, 0.0, 0.0),
+            (1.0, 1.0, 0.0), (0.0, 1.0, 1.0), (1.0, 0.0, 1.0)
         ]
 
         self.get_logger().info(f"Initialization for robots: {self.robot_list}")
@@ -55,100 +67,66 @@ class CsvToRvizMarkers(Node):
             path_marker.type = Marker.LINE_STRIP
             path_marker.action = Marker.ADD
             path_marker.id = 10000 + i      
-            path_marker.scale.x = 1.0       
+            path_marker.scale.x = 0.7
             
             r, g, b = colors[i % len(colors)]
             path_marker.color.r = r
             path_marker.color.g = g
             path_marker.color.b = b
             path_marker.color.a = 1.0
-
             path_marker.points = []
-            
+            path_marker.pose.orientation.w = 1.0
+
             self.robot_paths[robot_name] = path_marker
+            self.robot_colors[robot_name] = (r, g, b) 
 
             gps_topic = f'/{robot_name}/gps/fix'
-            
-            callback = partial(self.gps_callback, robot_name=robot_name)
-            
+            callback = partial(self.gps_callback, robot_name=robot_name, robot_index=i)
             sub = self.create_subscription(NavSatFix, gps_topic, callback, 10)
             self.subscriptions_list.append(sub)
             
-            self.get_logger().info(f"Listening to: {gps_topic} (Color: R={r} G={g} B={b})")
-
         self.timer = self.create_timer(2.0, self.publish_map_markers)
 
 
     def publish_map_markers(self):
-
-        if not os.path.exists(self.csv_path):
-            self.get_logger().warn(f"CSV file missing: {self.csv_path}")
-            return
-
-        df = pd.read_csv(self.csv_path)
+        if not os.path.exists(self.csv_path): return
+        
+        if self.cached_df is None:
+            try:
+                self.cached_df = pd.read_csv(self.csv_path)
+            except: return
+        df = self.cached_df
 
         if self.global_centroid is None:
-            metric_geometries = []
-            centroid_geometries = []
-
+            metric_geometries, centroid_geometries = [], []
             for i, row in df.iterrows():
                 try:
                     geom = wkb.loads(binascii.unhexlify(row['geom']))
-                    
-                    polygons_list = []
-                    if geom.geom_type == 'Polygon':
-                        polygons_list.append(geom)
-                    elif geom.geom_type == 'MultiPolygon':
-                        polygons_list.extend(geom.geoms)
-                    
+                    polygons_list = [geom] if geom.geom_type == 'Polygon' else list(geom.geoms)
                     for poly in polygons_list:
                         exterior = [self.transformer.transform(y, x) for x, y in poly.exterior.coords]
                         proj_poly = geometry.Polygon(exterior)
                         metric_geometries.append(proj_poly)
-                        
-                        if row['name'] == self.centroid_shape_name:
-                            centroid_geometries.append(proj_poly)
-                            
-                except Exception as e:
-                    self.get_logger().warn(f'Error in geometry {row.get("id", "?")}: {e}')
-
-            if not metric_geometries:
-                self.get_logger().warn("No valid geometries to process.")
-                return
-
-            if not centroid_geometries:
-                self.get_logger().warn(f"Could not find '{self.centroid_shape_name}' — using all.")
-                combined = unary_union(metric_geometries)
-            else:
-                combined = unary_union(centroid_geometries)
-
+                        if row['name'] == self.centroid_shape_name: centroid_geometries.append(proj_poly)
+                except: pass
+            
+            if not metric_geometries: return
+            combined = unary_union(centroid_geometries) if centroid_geometries else unary_union(metric_geometries)
             self.global_centroid = combined.centroid
-            self.get_logger().info(f"Centroid established: {self.global_centroid.x}, {self.global_centroid.y}")
-
+            self.get_logger().info(f"Centroid: {self.global_centroid.x}, {self.global_centroid.y}")
 
         for i, row in df.iterrows():
+            if self.target_parcel_id != -1 and int(row['id']) != self.target_parcel_id: continue
             try:
                 geom = wkb.loads(binascii.unhexlify(row['geom']))
+                polygons_list = [geom] if geom.geom_type == 'Polygon' else list(geom.geoms)
                 
                 metric_polys = []
-                source_polys = []
-                
-                if geom.geom_type == 'Polygon':
-                    source_polys.append(geom)
-                elif geom.geom_type == 'MultiPolygon':
-                    source_polys.extend(geom.geoms)
-                else:
-                    continue 
-
-                for poly in source_polys:
+                for poly in polygons_list:
                     exterior = [self.transformer.transform(y, x) for x, y in poly.exterior.coords]
                     metric_polys.append(geometry.Polygon(exterior))
-
-                if len(metric_polys) == 1:
-                    metric_geom = metric_polys[0]
-                else:
-                    metric_geom = geometry.MultiPolygon(metric_polys)
-
+                
+                metric_geom = geometry.MultiPolygon(metric_polys) if len(metric_polys) > 1 else metric_polys[0]
                 shifted = affinity.translate(metric_geom, xoff=-self.global_centroid.x, yoff=-self.global_centroid.y)
 
                 marker = Marker()
@@ -158,118 +136,109 @@ class CsvToRvizMarkers(Node):
                 marker.action = Marker.ADD
                 marker.id = int(row['id'])
                 marker.scale.x = 0.5
-                marker.color.r = 1.0
-                marker.color.g = 0.0
-                marker.color.b = 0.0
-                marker.color.a = 1.0
-                marker.lifetime = Duration(sec=0, nanosec=0)
-
+                marker.color.r = 1.0; marker.color.a = 1.0
+                marker.pose.orientation.w = 1.0
+                
                 polys_to_draw = shifted.geoms if shifted.geom_type == 'MultiPolygon' else [shifted]
-                
                 for p in polys_to_draw:
-                    for x, y in p.exterior.coords:
-                        marker.points.append(Point(x=x, y=y, z=0.0))
-                
+                    for x, y in p.exterior.coords: marker.points.append(Point(x=x, y=y, z=0.0))
                 self.publisher.publish(marker)
-
-            except Exception as e:
-                self.get_logger().warn(f'Error drawing parcel {row.get("id", "?")}: {e}')
+            except: pass
+        
         self.publish_sensor_markers()
 
     def publish_sensor_markers(self):
-        if not os.path.exists(self.sensor_config_path):
-            self.get_logger().warn(f"WAITING FOR FILE: {self.sensor_config_path} does not exist!") 
-            return
-
-        if self.global_centroid is None:
-            return
-
+        if not os.path.exists(self.sensor_config_path) or self.global_centroid is None: return
         try:
-            with open(self.sensor_config_path, 'r') as f:
-                sensors = json.load(f)
-
-
-            self.get_logger().info(f"Drawing {len(sensors)} sensors...") 
-
+            with open(self.sensor_config_path, 'r') as f: sensors = json.load(f)
+            
             for s in sensors:
-                sensor_id = s.get('sensor_id')
-                lat = s.get('lat')
-                lon = s.get('lon')
-                radius = s.get('radius', 30.0)
-
+                sid = s.get('sensor_id')
+                lat, lon = s.get('lat'), s.get('lon')
+                radius = s.get('radius', 30.0) + self.VISUAL_BUFFER
+                
                 mx, my = self.transformer.transform(lat, lon)
-
-                cx = mx - self.global_centroid.x
-                cy = my - self.global_centroid.y
-
+                cx, cy = mx - self.global_centroid.x, my - self.global_centroid.y
+                
                 marker = Marker()
                 marker.header.frame_id = 'map'
                 marker.ns = 'sensors'
                 marker.type = Marker.LINE_STRIP
                 marker.action = Marker.ADD
-                marker.id = int(sensor_id)
-                marker.scale.x = 0.5  
+                marker.id = int(sid)
+                marker.scale.x = 0.5
+                marker.color.r = 1.0; marker.color.g = 0.65; marker.color.a = 1.0
+                marker.pose.orientation.w = 1.0
 
-                marker.color.r = 1.0
-                marker.color.g = 0.65
-                marker.color.b = 0.0
-                marker.color.a = 1.0
-                marker.lifetime = Duration(sec=0, nanosec=0)
-
-                num_segments = 64
-                for i in range(num_segments + 1):
-                    angle = (i / num_segments) * 2 * pi
-                    px = cx + radius * cos(angle)
-                    py = cy + radius * sin(angle)
-                    marker.points.append(Point(x=px, y=py, z=0.0))
-
+                num = 64
+                for i in range(num + 1):
+                    angle = (i/num)*2*pi
+                    marker.points.append(Point(x=cx + radius*cos(angle), y=cy + radius*sin(angle), z=0.0))
                 self.publisher.publish(marker)
+        except: pass
 
-        except Exception as e:
-            self.get_logger().warn(f"Error drawing sensors: {e}")
-
-
-    def gps_callback(self, msg: NavSatFix, robot_name: str):
-
-        if self.global_centroid is None:
-            return
+    def gps_callback(self, msg: NavSatFix, robot_name: str, robot_index: int): 
+        if self.global_centroid is None: return
 
         mx, my = self.transformer.transform(msg.latitude, msg.longitude)
         dx = mx - self.global_centroid.x
         dy = my - self.global_centroid.y
-        new_point = Point(x=dx, y=dy, z=0.0)
-
-        marker = self.robot_paths[robot_name]
-
-        if marker.points:
-            last_point = marker.points[-1]
-            dist = sqrt((new_point.x - last_point.x)**2 + (new_point.y - last_point.y)**2)
-
-            if dist > 5.0:
-                self.get_logger().info(f"[{robot_name}] Jump {dist:.2f}m — resetting path.")
-                marker.points = []
-
-        marker.points.append(new_point)
-        marker.header.stamp = msg.header.stamp
         
-        self.publisher.publish(marker)
+        current_time = self.get_clock().now().to_msg()
 
-        # self.get_logger().info(f'[{robot_name}] Update: x={dx:.2f}, y={dy:.2f}')
+        # --- A. Okrąg wokół robota ---
+        circle_marker = Marker()
+        circle_marker.header.frame_id = 'map'
+        circle_marker.header.stamp = current_time
+        circle_marker.ns = 'robot_circles'
+        circle_marker.id = 20000 + robot_index
+        circle_marker.type = Marker.LINE_STRIP
+        circle_marker.action = Marker.ADD
+        circle_marker.scale.x = 0.6 
+        
+        r, g, b = self.robot_colors[robot_name]
+        circle_marker.color.r = r; circle_marker.color.g = g; circle_marker.color.b = b; circle_marker.color.a = 1.0
+        
+        # <--- ZMIANA: Czas życia wydłużony do 2 sekund, żeby nie znikało przy lagach GPS
+        circle_marker.lifetime = Duration(sec=2, nanosec=0) 
 
+        circle_marker.pose.position.x = dx
+        circle_marker.pose.position.y = dy
+        circle_marker.pose.orientation.w = 1.0
+        
+        circle_marker.points = self.circle_template_points
+        self.publisher.publish(circle_marker)
+
+        # --- B. Trajektoria ---
+        path_marker = self.robot_paths[robot_name]
+        new_point = Point(x=dx, y=dy, z=0.0)
+        
+        should_update = False
+        if not path_marker.points:
+            should_update = True
+        else:
+            last = path_marker.points[-1]
+            dist = sqrt((dx - last.x)**2 + (dy - last.y)**2)
+            if dist > 5.0:
+                path_marker.points = []
+                should_update = True
+            elif dist > 0.02: 
+                should_update = True
+
+        if should_update:
+            path_marker.points.append(new_point)
+            path_marker.header.stamp = current_time
+            self.publisher.publish(path_marker)
 
 def main(args=None):
     rclpy.init(args=args)
     node = CsvToRvizMarkers()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
-        node.get_logger().info("Interrupted by user (Ctrl+C)")
-    except rclpy.executors.ExternalShutdownException:
-        node.get_logger().info("ROS2 context was closed")
+    except KeyboardInterrupt: pass
     finally:
         node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        if rclpy.ok(): rclpy.shutdown()
 
 if __name__ == '__main__':
     main()

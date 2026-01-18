@@ -124,21 +124,78 @@ class SensorProximityConfig(BaseJobConfig):
         return "GIS4IoRT.jobs.SensorProximityStreamingJob"
 
 
-# Example of a theoretical different query - just for reference
-
-# class CollisionConfig(BaseJobConfig):
-#     type: Literal["COLLISION"]
-#     warning_distance_meters: float = 2.0  # Inne parametry niż w Geofence!
+class CollisionDetectionConfig(BaseJobConfig):
+    type: Literal["COLLISION"]
     
-#     def to_flink_args_list(self, control_topic: str) -> List[str]:
-#         return [
-#             "--algorithm", "COLLISION",
-#             "--parallelism", str(self.parallelism),
-#             "--threshold", str(self.warning_distance_meters),
-#             "--controlTopicName", control_topic
-#         ]
+    cellLengthMeters: float = Field(default=0, ge=0)
+    uniformGridSize: int = Field(default=100, ge=0)
+    gridMinX: float = 3.430
+    gridMinY: float = 46.336
+    gridMaxX: float = 3.436
+    gridMaxY: float = 46.342
 
-JobConfigUnion = Union[GeofenceConfig, SensorProximityConfig] #, CollisionConfig
+    inputTopicName: str = "multi_gps_fix" 
+
+    collisionThreshold: float = Field(
+        default=1.5, 
+        gt=0, 
+        description="Distance in meters to trigger collision alert"
+    )
+    robotStateTtlMillis: int = Field(
+        default=5000, 
+        ge=1000, 
+        description="Time to live for robot state (milliseconds)"
+    )
+    robotAlertCooldownMillis: int = Field(
+        default=5000, 
+        ge=0, 
+        description="Minimum time between alerts for the same pair (milliseconds)"
+    )
+    
+    @model_validator(mode='after')
+    def check_coordinates(self):
+        if self.gridMinX >= self.gridMaxX:
+            raise ValueError(f"gridMinX ({self.gridMinX}) must be smaller than gridMaxX ({self.gridMaxX})")
+        if self.gridMinY >= self.gridMaxY:
+            raise ValueError(f"gridMinY ({self.gridMinY}) must be smaller than gridMaxY ({self.gridMaxY})")
+        return self
+
+    def to_flink_args(self, control_topic: str, output_topic: str) -> List[str]:
+
+        config_dict = {
+            "parallelism": self.parallelism,
+            "bootStrapServers": self.bootStrapServers,
+            "localWebUi": self.localWebUi,
+            "configName": self.name, 
+
+            "cellLengthMeters": self.cellLengthMeters,
+            "uniformGridSize": self.uniformGridSize,
+            "gridMinX": self.gridMinX,
+            "gridMinY": self.gridMinY,
+            "gridMaxX": self.gridMaxX,
+            "gridMaxY": self.gridMaxY,
+            
+            "inputTopicName": self.inputTopicName,
+            "outputTopicName": output_topic, 
+            "controlTopicName": control_topic, 
+
+            "collisionThreshold": self.collisionThreshold,
+            "robotStateTtlMillis": self.robotStateTtlMillis,
+            "robotAlertCooldownMillis": self.robotAlertCooldownMillis
+        }
+
+        json_str = json.dumps(config_dict)
+        base64_config = base64.b64encode(json_str.encode('utf-8')).decode('utf-8')
+
+        return [
+            "--configBase64", base64_config
+        ]
+
+    def get_entry_class(self) -> str:
+        return "GIS4IoRT.jobs.CollisionDetectionStreamingJob"
+
+
+JobConfigUnion = Union[GeofenceConfig, SensorProximityConfig, CollisionDetectionConfig]
 
 # geofence
 class GeofenceRequest(BaseModel):

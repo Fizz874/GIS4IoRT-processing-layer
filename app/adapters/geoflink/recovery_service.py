@@ -52,6 +52,14 @@ async def restore_application_state():
             else:
                 logger.info(f"Config '{config_name}' (SENSOR) has partial rules - keeping asleep.")
 
+        elif config_type == 'COLLISION':
+            robots = database.get_robot_assignments(config_name)
+            reload_data['robots'] = robots
+            
+            if len(robots) > 0:
+                should_run = True
+
+
         is_running = await flink_service.is_job_running(saved_job_id)
 
         if is_running:
@@ -71,7 +79,15 @@ async def restore_application_state():
                     database.update_job_status(config_name, None)
                 continue
             
-            count = len(assignments) if config_type == 'GEOFENCE' else (len(reload_data.get('sensors', [])) + len(reload_data.get('robots', [])))
+
+            count = 0
+            if config_type == 'GEOFENCE':
+                count = len(assignments)
+            elif config_type == 'SENSOR':
+                count = len(reload_data.get('sensors', [])) + len(reload_data.get('robots', []))
+            elif config_type == 'COLLISION': 
+                count = len(reload_data.get('robots', []))
+
             logger.warning(f"Job for '{config_name}' is DEAD but has {count} rules. Resurrecting...")
             
             try:
@@ -85,6 +101,11 @@ async def restore_application_state():
                     logger.info(f"Reloading Sensor rules for '{config_name}'...")
                     await reload_sensor_state(control_topic, reload_data['sensors'], reload_data['robots'])
                 
+                elif config_type == 'COLLISION':
+                    logger.info(f"Reloading Collision whitelist for '{config_name}'...")
+                    await reload_collision_state(control_topic, reload_data['robots'])
+
+
                 restored_count += 1
                 logger.info(f"Configuration '{config_name}' successfully restored.")
                 
@@ -155,3 +176,16 @@ async def reload_sensor_state(topic: str, sensors: list, robots: list):
                 )
         except Exception as e:
             logger.error(f"Failed to replay robot {r['robot_id']}: {e}")
+
+
+async def reload_collision_state(topic: str, robots: list):
+    for r in robots:
+        try:
+            r_id = r['robot_id']
+            if database.get_robot(r_id):
+                await kafka_service.send_robot_assignment(
+                    robot_id=r_id,
+                    topic=topic
+                )
+        except Exception as e:
+            logger.error(f"Failed to replay robot {r.get('robot_id')} for collision: {e}")

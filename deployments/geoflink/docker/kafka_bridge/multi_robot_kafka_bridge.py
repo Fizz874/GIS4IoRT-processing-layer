@@ -1,9 +1,11 @@
 import rclpy
+import time 
 from rclpy.node import Node
 from sensor_msgs.msg import NavSatFix
 from kafka import KafkaProducer
 import json
 from functools import partial 
+import math
 
 class MultiRobotKafkaBridge(Node):
     def __init__(self):
@@ -45,7 +47,12 @@ class MultiRobotKafkaBridge(Node):
             self.get_logger().info(f'Subscribed to: {ros_topic} for robot: {robot_name}')
 
     def gps_callback(self, msg, robot_name):
-        timestamp_ms = msg.header.stamp.sec * 1000 + msg.header.stamp.nanosec // 1_000_000
+
+        if math.isnan(msg.latitude) or math.isnan(msg.longitude):
+            self.get_logger().warn(f"Skipping NaN GPS from {robot_name}")
+            return
+
+        timestamp_ms = int(time.time() * 1000)
 
         payload = {
             'id': robot_name,
