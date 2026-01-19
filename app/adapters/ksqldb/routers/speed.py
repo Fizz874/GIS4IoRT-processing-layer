@@ -59,7 +59,8 @@ async def enable_speed_monitoring(
     }
     
     try:
-        await kafka._send_json(CONTROL_TOPIC, data.robot_id, payload, timestamp_ms=None)
+        #await kafka.send_speed_allow(data.robot_id, CONTROL_TOPIC, composite_configs)
+        await kafka._send_json(CONTROL_TOPIC, data.robot_id, payload, timestamp_ms=None)#Zamienić na powyżej?
     except Exception as e:
         logger.error(f"Kafka error: {e}")
         raise HTTPException(500, detail=f"Failed to send to Kafka: {str(e)}")
@@ -72,10 +73,7 @@ async def enable_speed_monitoring(
     }
 
 
-# ==========================================
-# OPCJA 1: PRECYZYJNE USUWANIE (To jest "Smart Delete")
-# To jest to, czego używasz na co dzień w UI
-# ==========================================
+# Smart Delete
 @router.delete("/speed", tags=["Control"], summary="Disable specific speed monitoring")
 async def disable_speed_monitoring(
     data: SpeedRequest,
@@ -102,10 +100,7 @@ async def disable_speed_monitoring(
     return {"status": "updated", "current_state": payload}
 
 
-# ==========================================
-# OPCJA 2: NUKLEARNY DELETE (Reset)
-# Tego używasz w panelu admina lub w sytuacjach awaryjnych
-# ==========================================
+# Hard Reset
 @router.delete("/speed/reset/{robot_id}", tags=["Control"], summary="HARD RESET: Disable ALL monitoring for robot")
 async def reset_robot_monitoring(
     robot_id: str,

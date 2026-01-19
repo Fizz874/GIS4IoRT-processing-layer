@@ -8,6 +8,7 @@ from kafka import KafkaProducer
 import json
 import os
 import sys
+import time
 
 # Kafka Configuration
 KAFKA_ODOM_TOPIC = 'ros_filtered_odom'
@@ -39,35 +40,36 @@ class ROS2KafkaBridge(Node):
         self.create_subscription(
             Odometry,
             '/leader/localisation/filtered_odom',
-            lambda msg: self.odom_callback(msg, 'leader'),
+            lambda msg: self.odom_callback(msg, 'unit1'),
             10)
         
         self.create_subscription(
             Odometry,
             '/follower/localisation/filtered_odom',
-            lambda msg: self.odom_callback(msg, 'follower'),
+            lambda msg: self.odom_callback(msg, 'unit2'),
             10)
         
         # GPS Subscriptions
         self.create_subscription(
             NavSatFix,
             '/leader/gps/fix',
-            lambda msg: self.gps_callback(msg, 'leader'),
+            lambda msg: self.gps_callback(msg, 'unit1'),
             10)
         
         self.create_subscription(
             NavSatFix,
             '/follower/gps/fix',
-            lambda msg: self.gps_callback(msg, 'follower'),
+            lambda msg: self.gps_callback(msg, 'unit2'),
             10)
 
         self.get_logger().info("Bridge is live. Waiting for ROS2 messages...")
-        self.message_count = {'leader': 0, 'follower': 0, 'leader_gps': 0, 'follower_gps': 0}
+        self.message_count = {'unit1': 0, 'unit2': 0, 'unit1_gps': 0, 'unit2_gps': 0}
 
     # Receives Odometry and publishes to Kafka
     def odom_callback(self, msg, robot_id):
         try:
-            timestamp_ms = (msg.header.stamp.sec * 1000) + (msg.header.stamp.nanosec // 1000000)
+            timestamp_ms = int(time.time() * 1000)
+            #timestamp_ms = (msg.header.stamp.sec * 1000) + (msg.header.stamp.nanosec // 1000000)
             #print(str(msg.header.stamp.sec) + "sec " + str(msg.header.stamp.nanosec) + "nanosec")
             data = {
                 'timestamp': timestamp_ms,
@@ -76,7 +78,7 @@ class ROS2KafkaBridge(Node):
                 'position_z': msg.pose.pose.position.z,
                 'source_topic': f"/{robot_id}/localisation/filtered_odom"
             }
-            #print(data)
+            #print(robot_id, data)
             self.producer.send(KAFKA_ODOM_TOPIC, value=data, key=robot_id)
 
             self.message_count[robot_id] += 1
@@ -89,8 +91,8 @@ class ROS2KafkaBridge(Node):
     # Receives NavSatFix and publishes to Kafka
     def gps_callback(self, msg, robot_id):
         try:
-            timestamp_ms = (msg.header.stamp.sec * 1000) + (msg.header.stamp.nanosec // 1000000)
-            
+            timestamp_ms = int(time.time() * 1000)
+            #timestamp_ms = (msg.header.stamp.sec * 1000) + (msg.header.stamp.nanosec // 1000000)
             data = {
                 'timestamp': timestamp_ms,
                 'latitude': msg.latitude,
@@ -102,8 +104,8 @@ class ROS2KafkaBridge(Node):
             self.producer.send(KAFKA_GPS_TOPIC, value=data, key=robot_id)
 
             self.message_count[f"{robot_id}_gps"] += 1
-            if self.message_count[f"{robot_id}_gps"] % 100 == 0:
-                self.get_logger().info(f"Published GPS message #{self.message_count[f'{robot_id}_gps']} for '{robot_id}'")
+            #if self.message_count[f"{robot_id}_gps"] % 100 == 0:
+            #    self.get_logger().info(f"Published GPS message #{self.message_count[f'{robot_id}_gps']} for '{robot_id}'")
 
         except Exception as e:
             self.get_logger().error(f"Error processing GPS message for {robot_id}: {e}")

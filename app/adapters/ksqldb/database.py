@@ -60,6 +60,26 @@ def init_db():
                 );
             ''')
 
+            # SENSORS
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS sensors (
+                    sensor_id TEXT PRIMARY KEY
+                )
+            ''')
+            
+            # HUMIDITY RULES
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS humidity_rules (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    sensor_id TEXT NOT NULL,
+                    min_humidity REAL NOT NULL,
+                    alert_radius_m REAL NOT NULL,
+                    config_name TEXT NOT NULL,
+                    UNIQUE(sensor_id, config_name),
+                    FOREIGN KEY(sensor_id) REFERENCES sensors(sensor_id)
+                )
+            ''')
+
             logger.info(f"Database ({DB_NAME}) initialized successfully.")
     except Exception as e:
         logger.error(f"Failed to initialize database: {e}")
@@ -223,3 +243,65 @@ def remove_all_speed_assignments_for_robot(robot_id: str):
         )
         logger.info(f"NUCLEAR RESET: Removed all speed assignments for {robot_id}")
 
+# SENSORS
+class SensorEntry:
+    def __init__(self, sensor_id, description=""):
+        self.sensor_id = sensor_id
+
+def upsert_sensor(sensor: SensorEntry):
+    with get_connection() as conn:
+        conn.execute(
+            'INSERT OR REPLACE INTO sensors (sensor_id) VALUES (?)',
+            (sensor.sensor_id,)
+        )
+
+def get_all_sensors() -> List[dict]:
+    with get_connection() as conn:
+        rows = conn.execute("SELECT * FROM sensors").fetchall()
+        return [dict(row) for row in rows]
+
+def get_sensor(sensor_id: str) -> Optional[dict]:
+    with get_connection() as conn:
+        row = conn.execute("SELECT * FROM sensors WHERE sensor_id = ?", (sensor_id,)).fetchone()
+        return dict(row) if row else None
+
+def delete_sensor(sensor_id: str):
+    with get_connection() as conn:
+        conn.execute("DELETE FROM humidity_rules WHERE sensor_id = ?", (sensor_id,))
+        conn.execute("DELETE FROM sensors WHERE sensor_id = ?", (sensor_id,))
+
+# HUMIDITY RULES
+def add_humidity_rule(sensor_id: str, min_humidity: float, alert_radius_m: float, config_name: str):
+    with get_connection() as conn:
+        exists = conn.execute(
+            "SELECT 1 FROM humidity_rules WHERE sensor_id=? AND config_name=?",
+            (sensor_id, config_name)
+        ).fetchone()
+        
+        if not exists:
+            conn.execute(
+                "INSERT INTO humidity_rules (sensor_id, min_humidity, alert_radius_m, config_name) VALUES (?, ?, ?, ?)",
+                (sensor_id, min_humidity, alert_radius_m, config_name)
+            )
+            logger.info(f"Added humidity rule: sensor {sensor_id} -> {config_name}")
+
+def remove_humidity_rule(sensor_id: str, config_name: str):
+    with get_connection() as conn:
+        conn.execute(
+            "DELETE FROM humidity_rules WHERE sensor_id=? AND config_name=?",
+            (sensor_id, config_name)
+        )
+        logger.info(f"Removed humidity rule: sensor {sensor_id} -> {config_name}")
+
+def get_all_humidity_rules() -> List[dict]:
+    with get_connection() as conn:
+        rows = conn.execute("SELECT * FROM humidity_rules").fetchall()
+        return [dict(row) for row in rows]
+
+def get_humidity_rules_for_sensor(sensor_id: str) -> List[dict]:
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM humidity_rules WHERE sensor_id=?",
+            (sensor_id,)
+        ).fetchall()
+        return [dict(row) for row in rows]

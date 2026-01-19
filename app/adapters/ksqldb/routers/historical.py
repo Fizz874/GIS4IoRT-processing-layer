@@ -53,7 +53,7 @@ def get_historical_geofence_violations(
 ):
     """
     Historical Query
-    Return all the GPS coordinates where the robot is out from the specified plot.
+    Return all the GPS coordinates where the robot is out from the specified plot
     Returns data from recorded ROSbag
     
     Example Request:
@@ -68,7 +68,7 @@ def get_historical_geofence_violations(
         raise HTTPException(404, detail=f"Zone '{zone_id}' not found in database")
     
     polygon_hex = zone['geo']
-    zone_name = zone.get('name', zone_id)  # Fallback to ID if no name
+    zone_name = zone.get('name', zone_id)
     
     # Read ROSbag
     try:

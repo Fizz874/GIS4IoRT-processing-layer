@@ -16,7 +16,9 @@ dependencies {
     compileOnly "io.confluent.ksql:ksqldb-udf:7.4.0"
     
     // JTS Core
-    implementation "org.locationtech.jts:jts-core:1.19.0" 
+    implementation "org.locationtech.jts:jts-core:1.19.0"
+
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.2'
 }
 
 tasks.withType(JavaCompile) {

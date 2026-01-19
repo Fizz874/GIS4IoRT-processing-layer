@@ -18,6 +18,10 @@ RUN pip3 install \
     websocket-client \
     shapely \
     utm
+    #matplotlib \
+    #numpy \
+    # confluent-kafka \
+    # orjson
     #confluent-kafka \
     #orjson \
     #attrs \
