@@ -264,6 +264,7 @@ EMIT CHANGES;
 
 
 
+
 --++-- 4. HUMIDITY LOGIC (sharded broadcast)
 CREATE STREAM humidity_control_stream (
   sensor_id VARCHAR KEY,
@@ -335,40 +336,20 @@ CREATE STREAM robots_sharded WITH (PARTITIONS=2) AS
   FROM robots_pre_shard
   PARTITION BY shard_link;
 
--- Final JOIN
---CREATE STREAM robot_humidity_alerts WITH (
---  KAFKA_TOPIC='robot_humidity_alerts',
---  VALUE_FORMAT='JSON',
---  PARTITIONS=2
---) AS
---  SELECT 
---    r.shard_link,
---    r.robot_id,
---    s.sensor_id,
---    TIMESTAMPTOSTRING(r.timestamp, 'HH:mm:ss') AS time,
---    s.current_humidity,
---    s.limit_humidity,
---    GEO_DISTANCE(r.latitude, r.longitude, s.sensor_lat, s.sensor_lon) * 1000 AS dist_m
---  FROM robots_sharded r
---  JOIN sensors_broadcast s
---    WITHIN 1800 SECONDS  --30 minut
---    ON r.shard_link = s.shard_link
---  WHERE 
---    (GEO_DISTANCE(r.latitude, r.longitude, s.sensor_lat, s.sensor_lon) * 1000) < s.limit_radius
---    AND s.current_humidity > s.limit_humidity 
---  EMIT CHANGES;
-
-CREATE STREAM robot_humidity_alerts WITH (
-  KAFKA_TOPIC='robot_humidity_alerts',
+-- 1. Create RAW stream: Concatenate Robot and Sensor into one ID
+CREATE STREAM robot_humidity_alerts_raw WITH (
+  KAFKA_TOPIC='robot_humidity_alerts_raw',
   VALUE_FORMAT='JSON',
   PARTITIONS=2
 ) AS
   SELECT
+    (r.robot_id + '_' + s.sensor_id + '_' + CAST(r.timestamp AS VARCHAR)) AS dedupe_key,
+    
     r.shard_link,
     'humidity' AS type,
     r.robot_id AS robot,
     r.timestamp AS ts,
-    s.timestamp AS sensor_ts,  -- ADD THIS
+    s.timestamp AS sensor_ts,
     r.latitude AS lat,
     r.longitude AS lon,
     s.sensor_id AS sensor,
@@ -384,4 +365,25 @@ CREATE STREAM robot_humidity_alerts WITH (
     AND s.current_humidity > s.limit_humidity 
     AND s.timestamp <= r.timestamp              
     AND s.timestamp > (r.timestamp - 10800)
+  EMIT CHANGES;
+
+CREATE TABLE robot_humidity_alerts_deduped WITH (
+  KAFKA_TOPIC='robot_humidity_alerts',
+  VALUE_FORMAT='JSON',
+  PARTITIONS=2
+) AS
+  SELECT
+    dedupe_key,
+    
+    LATEST_BY_OFFSET(robot) AS robot,
+    LATEST_BY_OFFSET(sensor) AS sensor,
+    MAX(sensor_ts) AS final_sensor_ts,
+    LATEST_BY_OFFSET(type) AS type,
+    LATEST_BY_OFFSET(ts) AS robot_ts,
+    LATEST_BY_OFFSET(lat) AS lat,
+    LATEST_BY_OFFSET(lon) AS lon,
+    LATEST_BY_OFFSET(humidity) AS humidity,
+    LATEST_BY_OFFSET(distance_m) AS distance_m
+  FROM robot_humidity_alerts_raw
+  GROUP BY dedupe_key
   EMIT CHANGES;
