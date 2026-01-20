@@ -255,7 +255,7 @@ services:
         condition: service_started
     volumes:
       - ./scripts:/scripts
-      - ./bags:/bags
+      - ../bags:/bags
     environment:
       KAFKA_BOOTSTRAP_SERVERS: "broker:29092"
     tty: true

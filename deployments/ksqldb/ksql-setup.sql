@@ -260,6 +260,10 @@ EMIT CHANGES;
 
 
 
+
+
+
+
 --++-- 4. HUMIDITY LOGIC (sharded broadcast)
 CREATE STREAM humidity_control_stream (
   sensor_id VARCHAR KEY,
@@ -354,9 +358,6 @@ CREATE STREAM robots_sharded WITH (PARTITIONS=2) AS
 --    AND s.current_humidity > s.limit_humidity 
 --  EMIT CHANGES;
 
-
-
--- Push for testing Final JOIN timestamps table join:
 CREATE STREAM robot_humidity_alerts WITH (
   KAFKA_TOPIC='robot_humidity_alerts',
   VALUE_FORMAT='JSON',
@@ -367,6 +368,7 @@ CREATE STREAM robot_humidity_alerts WITH (
     'humidity' AS type,
     r.robot_id AS robot,
     r.timestamp AS ts,
+    s.timestamp AS sensor_ts,  -- ADD THIS
     r.latitude AS lat,
     r.longitude AS lon,
     s.sensor_id AS sensor,
@@ -375,12 +377,11 @@ CREATE STREAM robot_humidity_alerts WITH (
     GEO_DISTANCE(r.latitude, r.longitude, s.sensor_lat, s.sensor_lon) * 1000 AS distance_m
   FROM robots_sharded r
   JOIN sensors_broadcast s
-    WITHIN 15000 MILLISECONDS -- 1. Widen this buffer to be safe
+    WITHIN 15000 MILLISECONDS
     ON r.shard_link = s.shard_link
   WHERE 
     (GEO_DISTANCE(r.latitude, r.longitude, s.sensor_lat, s.sensor_lon) * 1000) < s.limit_radius
     AND s.current_humidity > s.limit_humidity 
-    -- 2. Strict Time Boxing to eliminate duplicates:
-    AND s.timestamp <= r.timestamp              -- Must be in the past
-    AND s.timestamp > (r.timestamp - 10000)     -- Must be newer than 10s ago
+    AND s.timestamp <= r.timestamp              
+    AND s.timestamp > (r.timestamp - 10800)
   EMIT CHANGES;
