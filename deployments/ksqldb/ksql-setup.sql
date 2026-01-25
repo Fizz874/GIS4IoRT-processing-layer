@@ -1,7 +1,7 @@
 --++-- 0. BASE STREAMS
 
 SET 'auto.offset.reset' = 'earliest';
-SET 'max.task.idle.ms' = '0'; --by procesować wiadomość w oknie od soil humidity
+SET 'max.task.idle.ms' = '0';
 
 CREATE STREAM ros_filtered_odom_stream (
   robot_id VARCHAR KEY,  
@@ -64,8 +64,8 @@ SELECT
   s.altitude
 FROM ros_gps_stream s
 JOIN robot_registry r ON s.robot_id = r.robot_id
-WHERE r.status = 'REGISTERED'
-PARTITION BY s.robot_id;
+WHERE r.status = 'REGISTERED';
+--PARTITION BY s.robot_id;
 
 -- Odometry drop unregistered
 CREATE STREAM ros_odom_registered WITH (PARTITIONS=2) AS
@@ -77,8 +77,8 @@ SELECT
   s.position_z
 FROM ros_filtered_odom_stream s
 JOIN robot_registry r ON s.robot_id = r.robot_id
-WHERE r.status = 'REGISTERED'
-PARTITION BY s.robot_id;
+WHERE r.status = 'REGISTERED';
+--PARTITION BY s.robot_id;
 
 -- Sensor registry
 CREATE TABLE sensor_registry (
@@ -100,8 +100,8 @@ SELECT
   s.humidity
 FROM sensor_raw_stream s
 JOIN sensor_registry r ON s.sensor_id = r.sensor_id
-WHERE r.status = 'REGISTERED'
-PARTITION BY s.sensor_id;
+WHERE r.status = 'REGISTERED';
+--PARTITION BY s.sensor_id;
 
 
 
@@ -171,10 +171,9 @@ WINDOW HOPPING (SIZE 2 SECONDS, ADVANCE BY 1 SECOND)
 WHERE timestamp IS NOT NULL
 GROUP BY robot_id
 
-
 HAVING 
   COUNT(*) >= 2
-  AND (MAX(timestamp) - MIN(timestamp)) > 1500 -- points aren't duplicates
+  AND (MAX(timestamp) - MIN(timestamp)) > 1500
 EMIT FINAL;
 
 
@@ -260,11 +259,6 @@ EMIT CHANGES;
 
 
 
-
-
-
-
-
 --++-- 4. HUMIDITY LOGIC (sharded broadcast)
 CREATE STREAM humidity_control_stream (
   sensor_id VARCHAR KEY,
@@ -299,7 +293,6 @@ CREATE STREAM sensor_data_with_rules AS
   WHERE r.status = 'ON';
 
 -- Sensors Explode (manual broadcast)
--- Generates 2 copies of every sensor reading (Shard P0 and Shard P1)
 CREATE STREAM sensors_exploded AS
   SELECT
     sensor_id,
@@ -336,20 +329,18 @@ CREATE STREAM robots_sharded WITH (PARTITIONS=2) AS
   FROM robots_pre_shard
   PARTITION BY shard_link;
 
--- 1. Create RAW stream: Concatenate Robot and Sensor into one ID
-CREATE STREAM robot_humidity_alerts_raw WITH (
-  KAFKA_TOPIC='robot_humidity_alerts_raw',
+
+-- Push for testing Final JOIN timestamps table join:
+CREATE STREAM robot_humidity_alerts WITH (
+  KAFKA_TOPIC='robot_humidity_alerts',
   VALUE_FORMAT='JSON',
   PARTITIONS=2
 ) AS
   SELECT
-    (r.robot_id + '_' + s.sensor_id + '_' + CAST(r.timestamp AS VARCHAR)) AS dedupe_key,
-    
     r.shard_link,
     'humidity' AS type,
     r.robot_id AS robot,
     r.timestamp AS ts,
-    s.timestamp AS sensor_ts,
     r.latitude AS lat,
     r.longitude AS lon,
     s.sensor_id AS sensor,
@@ -362,28 +353,7 @@ CREATE STREAM robot_humidity_alerts_raw WITH (
     ON r.shard_link = s.shard_link
   WHERE 
     (GEO_DISTANCE(r.latitude, r.longitude, s.sensor_lat, s.sensor_lon) * 1000) < s.limit_radius
-    AND s.current_humidity > s.limit_humidity 
-    AND s.timestamp <= r.timestamp              
-    AND s.timestamp > (r.timestamp - 10800)
-  EMIT CHANGES;
-
-CREATE TABLE robot_humidity_alerts_deduped WITH (
-  KAFKA_TOPIC='robot_humidity_alerts',
-  VALUE_FORMAT='JSON',
-  PARTITIONS=2
-) AS
-  SELECT
-    dedupe_key,
-    
-    LATEST_BY_OFFSET(robot) AS robot,
-    LATEST_BY_OFFSET(sensor) AS sensor,
-    MAX(sensor_ts) AS final_sensor_ts,
-    LATEST_BY_OFFSET(type) AS type,
-    LATEST_BY_OFFSET(ts) AS robot_ts,
-    LATEST_BY_OFFSET(lat) AS lat,
-    LATEST_BY_OFFSET(lon) AS lon,
-    LATEST_BY_OFFSET(humidity) AS humidity,
-    LATEST_BY_OFFSET(distance_m) AS distance_m
-  FROM robot_humidity_alerts_raw
-  GROUP BY dedupe_key
+    AND s.current_humidity > s.limit_humidity
+    AND s.timestamp <= r.timestamp
+    AND s.timestamp > (r.timestamp - 10000)
   EMIT CHANGES;

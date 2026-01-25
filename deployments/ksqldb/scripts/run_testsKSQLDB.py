@@ -195,8 +195,8 @@ def run_tests():
 
     print(f"=== STARTING TESTS (Ctrl+C to abort all) ===")
 
-    #for i in range(1, ITERATIONS + 1):
-    for i in [4,5,6]:#1,2,3,4,5,6,7,8,9  
+    for i in range(1, ITERATIONS + 1):
+    #for i in [1,2,3]:#1,2,3,4,5,6,7,8,9
         meta = ksqldb_manager.get_test_metadata(i)
         
         if not meta:
