@@ -15,6 +15,9 @@ api_env/
 build/
 *.jar
 *.class
+!nes_collision.jar
+!nes_geofence.jar
+!nes_humidity.jar
 
 *.log
 *.tmp
