@@ -1,0 +1,186 @@
+services:
+
+  nes_coordinator:
+    image: nebulastream/nes-executable-image:latest
+    network_mode: host
+    volumes:
+      - ./config:/config
+    command:
+      - nesCoordinator
+      - --coordinatorHost=${NES_COORDINATOR_IP}
+      - --restIp=${NES_COORDINATOR_IP}
+      - --restPort=${NES_COORDINATOR_REST_PORT}
+      - --rpcPort=${NES_COORDINATOR_RPC_PORT}
+      - --worker.coordinatorHost=${NES_COORDINATOR_IP}
+      - --worker.coordinatorPort=${NES_COORDINATOR_RPC_PORT}
+      - --worker.localWorkerHost=${NES_COORDINATOR_IP}
+      - --logLevel=LOG_WARNING
+      - --configPath=/config/nebulastream/nes_coordinator_config.yml
+    env_file: .env
+
+  nes_ui:
+    image: nebulastream/nes-ui-image:latest
+    network_mode: host
+
+  mosquitto:
+    image: eclipse-mosquitto
+    network_mode: host
+    volumes:
+      - ./config/mosquitto:/mosquitto/config
+
+  ros2_mqtt_leader:
+    build:
+      context: .
+      dockerfile: config/dockerfiles/Dockerfile.bridge
+    network_mode: host
+    volumes:
+      - ./scripts:/scripts
+      - ./logs:/logs
+    command: [ "python3", "/scripts/ros2_mqtt.py", "${MQTT_IP}", "${MQTT_PORT}", "${ROBOT_NAME_LEADER}", "${ROS2_TOPIC_LEADER}", "${MQTT_TOPIC_LEADER}" ]
+    env_file: .env
+
+  ros2_mqtt_follower:
+    build:
+      context: .
+      dockerfile: config/dockerfiles/Dockerfile.bridge
+    network_mode: host
+    volumes:
+      - ./scripts:/scripts
+      - ./logs:/logs
+    command: [ "python3", "/scripts/ros2_mqtt.py", "${MQTT_IP}", "${MQTT_PORT}", "${ROBOT_NAME_FOLLOWER}", "${ROS2_TOPIC_FOLLOWER}", "${MQTT_TOPIC_FOLLOWER}" ]
+    env_file: .env
+
+  ros2_mqtt_leader_inv:
+    build:
+      context: .
+      dockerfile: config/dockerfiles/Dockerfile.bridge
+    network_mode: host
+    volumes:
+      - ./scripts:/scripts
+      - ./logs:/logs
+    command: [ "python3", "/scripts/ros2_mqtt.py", "${MQTT_IP}", "${MQTT_PORT}", "${ROBOT_NAME_LEADER_INV}", "${ROS2_TOPIC_LEADER_INV}", "${MQTT_TOPIC_LEADER_INV}" ]
+    env_file: .env
+
+  nes_worker_leader:
+    image: nebulastream/nes-executable-image:latest
+    network_mode: host
+    volumes:
+      - ./config:/config
+    command:
+      - nesWorker
+      - --configPath=/config/nebulastream/nes_robot_worker_leader_config.yml
+
+  nes_worker_follower:
+    image: nebulastream/nes-executable-image:latest
+    network_mode: host
+    volumes:
+      - ./config:/config
+    command:
+      - nesWorker
+      - --configPath=/config/nebulastream/nes_robot_worker_follower_config.yml
+
+  nes_worker_leader_inv:
+    image: nebulastream/nes-executable-image:latest
+    network_mode: host
+    volumes:
+      - ./config:/config
+    command:
+      - nesWorker
+      - --configPath=/config/nebulastream/nes_robot_worker_leader_inv_config.yml
+
+  nes_worker_humidity:
+    image: nebulastream/nes-executable-image:latest
+    network_mode: host
+    volumes:
+      - ./config:/config
+    command:
+      - nesWorker
+      - --configPath=/config/nebulastream/nes_humidity_worker_config.yml
+
+  geofence_query:
+    build:
+      context: .
+      dockerfile: config/dockerfiles/Dockerfile.geofence
+    network_mode: host
+    volumes:
+      - ./data:/data
+    env_file: .env
+    command: [ "/data/field/${FIELD_FILE}" ]
+
+  humidity_query:
+    build:
+      context: .
+      dockerfile: config/dockerfiles/Dockerfile.humidity
+    network_mode: host
+    env_file: .env
+
+  collision_query:
+    build:
+      context: .
+      dockerfile: config/dockerfiles/Dockerfile.collision
+    network_mode: host
+    env_file: .env
+
+  ros2_play_leader:
+    build:
+      context: .
+      dockerfile: config/dockerfiles/Dockerfile.bridge
+    network_mode: host
+    volumes:
+      - ../ros2_bags:/bags
+    command: [ "ros2", "bag", "play", "/bags/${ROBOT_NAME_LEADER}" ]
+    env_file: .env
+
+  ros2_play_follower:
+    build:
+      context: .
+      dockerfile: config/dockerfiles/Dockerfile.bridge
+    network_mode: host
+    volumes:
+      - ../ros2_bags:/bags
+    command: [ "ros2", "bag", "play", "/bags/${ROBOT_NAME_FOLLOWER}" ]
+    env_file: .env
+
+  ros2_play_leader_inv:
+    build:
+      context: .
+      dockerfile: config/dockerfiles/Dockerfile.bridge
+    network_mode: host
+    volumes:
+      - ../ros2_bags:/bags
+    command: [ "ros2", "bag", "play", "/bags/${ROBOT_NAME_LEADER_INV}" ]
+    env_file: .env
+
+  humidity_producer:
+    build:
+      context: .
+      dockerfile: config/dockerfiles/Dockerfile.humproducer
+    network_mode: host
+    volumes:
+      - ./scripts:/scripts
+      - ./data:/data
+      - ./logs:/logs
+    command: [ "python3", "/scripts/humidity_producer.py", "${MQTT_IP}", "${MQTT_PORT}", "/data/sensors.csv" ]
+    env_file: .env
+
+  visualizer:
+    build:
+      context: .
+      dockerfile: config/dockerfiles/Dockerfile.visualizer
+    network_mode: host
+    volumes:
+      - ./scripts:/scripts
+      - ./data:/data
+    command: [ "python3", "/scripts/visualizer.py", "${MQTT_IP}", "${MQTT_PORT}", "${VISUALIZER_PORT}", "${DATA_TOPICS}", "${QUERY_NAMES}", "${HUMIDITY_THRESHOLD}", "${BUFFER_RADIUS}", "/data/field/${FIELD_FILE}" ]
+    env_file: .env
+
+  subscriber:
+    build:
+      context: .
+      dockerfile: config/dockerfiles/Dockerfile.subscriber
+    network_mode: host
+    volumes:
+      - ./scripts:/scripts
+      - ./logs:/logs
+    command: [ "python", "/scripts/subscriber.py", "${QUERY_HOST_IP}", "${MQTT_PORT}", "${QUERY_NAMES}" ]
+    env_file: .env

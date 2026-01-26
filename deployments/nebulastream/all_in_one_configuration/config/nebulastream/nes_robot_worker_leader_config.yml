@@ -1,0 +1,13 @@
+coordinatorHost: 127.0.0.1 # MACHINE_IP
+coordinatorPort: 4000
+localWorkerHost: 127.0.0.1 # MACHINE_IP
+workerId: 2
+logLevel: LOG_WARNING
+
+physicalSources:
+  - logicalSourceName: gps_position
+    physicalSourceName: leader
+    type: MQTT_SOURCE
+    configuration:
+      url: ws://127.0.0.1:9001 # MACHINE_IP:9001
+      topic: leader_gps_fix

@@ -1,0 +1,45 @@
+services:
+
+  mosquitto:
+    image: eclipse-mosquitto
+    network_mode: host
+    volumes:
+      - ./config:/mosquitto/config
+
+  nes_ui:
+    image: nebulastream/nes-ui-image:latest
+    network_mode: host
+
+  subscriber:
+    build:
+      context: .
+      dockerfile: config/Dockerfile.subscriber
+    network_mode: host
+    volumes:
+      - ./scripts:/scripts
+    command: [ "python", "/scripts/subscriber.py", "${QUERY_HOST_IP}", "${QUERY_HOST_MQTT_PORT}", "${QUERY_NAMES}" ]
+    env_file: .env
+
+  geofence_query:
+    build:
+      context: .
+      dockerfile: config/Dockerfile.geofence
+    network_mode: host
+    volumes:
+      - ./data:/data
+    env_file: .env
+    command: [ "/data/field/${FIELD_FILE}" ]
+
+  humidity_query:
+    build:
+      context: .
+      dockerfile: config/Dockerfile.humidity
+    network_mode: host
+    env_file: .env
+
+  collision_query:
+    build:
+      context: .
+      dockerfile: config/Dockerfile.collision
+    network_mode: host
+    env_file: .env
