@@ -23,15 +23,11 @@ async def lifespan(app: FastAPI):
             from app.adapters.ksqldb import database as ksqldb_database
             from app.adapters.ksqldb.kafka_service import kafka_service as ksqldb_kafka_service
             from app.adapters.ksqldb.consumer_manager import consumer_manager as ksqldb_consumer_manager
-            
-            
             ksqldb_database.init_db()
             await ksqldb_kafka_service.start()
             
         elif ACTIVE_ADAPTER == "nebulastream":
             logger.info("Starting NebulaStream adapter...")
-            # TODO: NebulaStream lifecycle
-            pass
         
         yield
         
@@ -39,7 +35,6 @@ async def lifespan(app: FastAPI):
         if ACTIVE_ADAPTER == "ksqldb":
             from app.adapters.ksqldb.kafka_service import kafka_service as ksqldb_kafka_service
             from app.adapters.ksqldb.consumer_manager import consumer_manager as ksqldb_consumer_manager
-            
             await ksqldb_consumer_manager.stop_all()
             await ksqldb_kafka_service.stop()
 
@@ -73,8 +68,8 @@ elif ACTIVE_ADAPTER == "ksqldb":
     app.include_router(ksqldb_websockets.router, prefix="/ksqldb")
 
 elif ACTIVE_ADAPTER == "nebulastream":
-    # TODO: NebulaStream routers
-    pass
+    from app.adapters.nebulastream.routers import router as nebulastream_router
+    app.include_router(nebulastream_router, prefix="/nebulastream")
 
 @app.get("/", tags=["Health"])
 def root():

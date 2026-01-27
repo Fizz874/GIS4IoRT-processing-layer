@@ -88,3 +88,7 @@ You can also run all components on a single machine. To do this, navigate to the
 4. **Monitoring:**
     
     Once started, you can view the live robot positions and query results by navigating to `MACHINE_IP:8050` in your web browser
+
+### API
+
+The API functionality is located in the `nes_query_results_ui` directory
