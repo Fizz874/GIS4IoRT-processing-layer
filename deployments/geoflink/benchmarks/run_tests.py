@@ -14,6 +14,7 @@ import flink_manager
 
 # Runs GeoFlink architecture benchmarks.
 # Benchmark query configuration lives in flink_manager.py.
+# Topic names are configured in kafka_sensor_producer.py for telemetry logging and sensor signal generation.
 
 # --- CONFIGURATION ---
 ITERATIONS = 1
