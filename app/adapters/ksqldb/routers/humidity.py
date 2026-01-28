@@ -49,7 +49,7 @@ async def delete_sensor(
 
 
 # RULES CONTROL
-@router.post("/humidity-rule", tags=["Humidity Control"])
+@router.post("/humidity", tags=["Humidity Control"])
 async def add_humidity_rule(
     data: HumidityRuleRequest,
     kafka: KafkaService = Depends(get_kafka_service)
@@ -79,7 +79,7 @@ async def add_humidity_rule(
         "radius": data.alert_radius_m
     }
 
-@router.delete("/humidity-rule", tags=["Humidity Control"])
+@router.delete("/humidity", tags=["Humidity Control"])
 async def remove_humidity_rule(
     data: HumidityRuleRequest,
     kafka: KafkaService = Depends(get_kafka_service)
@@ -94,6 +94,6 @@ async def remove_humidity_rule(
         "config_name": data.config_name
     }
 
-@router.get("/humidity-rule", tags=["Humidity Control"])
+@router.get("/humidity", tags=["Humidity Control"])
 def list_humidity_rules():
     return database.get_all_humidity_rules()

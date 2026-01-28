@@ -41,8 +41,6 @@ CREATE STREAM sensor_raw_stream (
 );
 
 
-
-
 --++-- 1. REGISTERED STREAMS
 -- Robot registry
 CREATE TABLE robot_registry (
@@ -65,7 +63,6 @@ SELECT
 FROM ros_gps_stream s
 JOIN robot_registry r ON s.robot_id = r.robot_id
 WHERE r.status = 'REGISTERED';
---PARTITION BY s.robot_id;
 
 -- Odometry drop unregistered
 CREATE STREAM ros_odom_registered WITH (PARTITIONS=2) AS
@@ -78,7 +75,6 @@ SELECT
 FROM ros_filtered_odom_stream s
 JOIN robot_registry r ON s.robot_id = r.robot_id
 WHERE r.status = 'REGISTERED';
---PARTITION BY s.robot_id;
 
 -- Sensor registry
 CREATE TABLE sensor_registry (
@@ -101,11 +97,6 @@ SELECT
 FROM sensor_raw_stream s
 JOIN sensor_registry r ON s.sensor_id = r.sensor_id
 WHERE r.status = 'REGISTERED';
---PARTITION BY s.sensor_id;
-
-
-
-
 
 
 --++-- 2. SPEED MONITORING
@@ -126,7 +117,6 @@ CREATE TABLE speed_config_table AS
   FROM speed_control_stream
   GROUP BY robot_id;
 
--- activated
 CREATE STREAM odom_active_speed_stream AS
 SELECT
   o.robot_id AS robot_id,
@@ -177,7 +167,6 @@ HAVING
 EMIT FINAL;
 
 
-
 --++-- 3. GEOFENCE LOGIC
 CREATE STREAM geofence_control_stream (
   robot_id VARCHAR KEY,
@@ -212,7 +201,7 @@ JOIN geofence_config_table c ON g.robot_id = c.robot_id
 WHERE c.status = 'ON'
 EMIT CHANGES;
 
---OR AGREGATE THE RESULT:
+--OR, AGREGATE THE RESULT WITH STATUS REPORT/PUSH OUT ALERTS:
 --CREATE TABLE robot_geofence_status WITH (
 --  KAFKA_TOPIC='robot_geofence_alerts',
 --  VALUE_FORMAT='JSON',
@@ -227,19 +216,19 @@ EMIT CHANGES;
 --  LATEST_BY_OFFSET(latitude) AS current_lat,
 --  LATEST_BY_OFFSET(longitude) AS current_lon,
 --  LATEST_BY_OFFSET(active_configs) AS active_configs,
---  --Odkomentować jeśli status report a nie alert:
+--  --uncomment if interval status report instead of alert:
 --  --CASE 
 --  --  WHEN MIN(CASE WHEN is_inside THEN 1 ELSE 0 END) = 0 THEN TRUE
 --  --  ELSE FALSE
 --  --END AS is_out_of_bounds
---  TRUE AS is_out_of_bounds-- zakomentować linijkę jeśli status report a nie alert
+--  TRUE AS is_out_of_bounds-- comment out this line if status report instead of alert
 --FROM gps_with_geofence_check
 --WINDOW TUMBLING (SIZE 1 SECOND)
 --GROUP BY robot_id
---HAVING MIN(CASE WHEN is_inside THEN 1 ELSE 0 END) = 0--zakomentować linijkę jeśli status report a nie alert
+--HAVING MIN(CASE WHEN is_inside THEN 1 ELSE 0 END) = 0--comment out this line if status report instead of alert
 --EMIT FINAL;
 
--- OR PUSH IT OUT for tests:
+-- OR, PUSH OUT ALERTS FOR TESTS:
 CREATE STREAM robot_geofence_alerts_stream WITH (
   KAFKA_TOPIC='robot_geofence_alerts',
   VALUE_FORMAT='JSON',
@@ -258,8 +247,7 @@ WHERE is_inside = false
 EMIT CHANGES;
 
 
-
---++-- 4. HUMIDITY LOGIC (sharded broadcast)
+--++-- 4. HUMIDITY LOGIC
 CREATE STREAM humidity_control_stream (
   sensor_id VARCHAR KEY,
   min_humidity DOUBLE,
@@ -292,7 +280,7 @@ CREATE STREAM sensor_data_with_rules AS
   JOIN humidity_rules_table r ON s.sensor_id = r.sensor_id
   WHERE r.status = 'ON';
 
--- Sensors Explode (manual broadcast)
+-- Sensors Explode, Manual Broadcast
 CREATE STREAM sensors_exploded AS
   SELECT
     sensor_id,
@@ -310,7 +298,7 @@ CREATE STREAM sensors_broadcast WITH (PARTITIONS=2) AS
   SELECT * FROM sensors_exploded
   PARTITION BY shard_link;
 
--- Robots step 1, Last digit split
+-- ROBOTS step 1, Last digit split
 CREATE STREAM robots_pre_shard AS
   SELECT 
     robot_id,
@@ -329,8 +317,7 @@ CREATE STREAM robots_sharded WITH (PARTITIONS=2) AS
   FROM robots_pre_shard
   PARTITION BY shard_link;
 
-
--- Push for testing Final JOIN timestamps table join:
+-- Push for testing
 CREATE STREAM robot_humidity_alerts WITH (
   KAFKA_TOPIC='robot_humidity_alerts',
   VALUE_FORMAT='JSON',
@@ -349,11 +336,11 @@ CREATE STREAM robot_humidity_alerts WITH (
     GEO_DISTANCE(r.latitude, r.longitude, s.sensor_lat, s.sensor_lon) * 1000 AS distance_m
   FROM robots_sharded r
   JOIN sensors_broadcast s
-    WITHIN 15000 MILLISECONDS
+    WITHIN 15000 MILLISECONDS--1800 SECONDS --for normal usage 30min interval
     ON r.shard_link = s.shard_link
   WHERE 
     (GEO_DISTANCE(r.latitude, r.longitude, s.sensor_lat, s.sensor_lon) * 1000) < s.limit_radius
     AND s.current_humidity > s.limit_humidity
     AND s.timestamp <= r.timestamp
-    AND s.timestamp > (r.timestamp - 10000)
+    AND s.timestamp > (r.timestamp - 10000)--(r.timestamp - 1800000) --for normal usage 30min interval
   EMIT CHANGES;

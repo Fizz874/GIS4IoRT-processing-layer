@@ -13,7 +13,7 @@ import ksqldb_managerKSQLDB as ksqldb_manager
 ITERATIONS = 9
 OUTPUT_DIR = "test_results"
 KAFKA_BROKER = "localhost:9092"
-INPUT_TOPIC_ROBOTS = "ros_gps_fix" # The topic from the Bridge
+INPUT_TOPIC_ROBOTS = "ros_gps_fix"
 
 # Docker
 DOCKER_CONTAINER = "ros2_bridge"
@@ -21,9 +21,9 @@ SENSOR_GENERATOR_SCRIPT = "scripts/kafka_sensor_producerKSQLDB.py"
 
 current_sensor_process = None
 current_collector = None
-current_input_logger = None # <--- New Handler
+current_input_logger = None
 
-# --- HELPER: Safe JSON Deserializer ---
+# JSON Deserializer
 def safe_json_deserializer(x):
     try:
         if x is None: return None
@@ -33,7 +33,7 @@ def safe_json_deserializer(x):
     except Exception:
         return None
 
-# --- NEW CLASS: Robot Input Logger ---
+# Robot Input Logger
 class RobotInputLogger(threading.Thread):
     """
     Listens to the INPUT topic (ros_gps_fix) and logs raw robot data 
@@ -45,7 +45,7 @@ class RobotInputLogger(threading.Thread):
         self.running = True
         self.daemon = True 
         
-        # Determine Group ID (Unique per run to avoid offset issues)
+        # Determine Group ID
         self.group_id = f"logger_robot_{random.randint(10000, 99999)}"
 
     def run(self):
@@ -58,7 +58,6 @@ class RobotInputLogger(threading.Thread):
                     bootstrap_servers=KAFKA_BROKER,
                     auto_offset_reset='latest',
                     value_deserializer=safe_json_deserializer,
-                    # We accept Key as bytes to decode manually
                     key_deserializer=lambda k: k.decode('utf-8') if k else None,
                     group_id=self.group_id,
                     consumer_timeout_ms=1000 
@@ -73,8 +72,6 @@ class RobotInputLogger(threading.Thread):
                             val = msg.value
                             key = msg.key
                             if val:
-                                # Reformat to match your requested structure
-                                # {"id": "unit1", "ts": 123..., "lat": ..., "lon": ...}
                                 log_entry = {
                                     "id": key if key else "unknown",
                                     "ts": val.get('timestamp'),
@@ -94,7 +91,7 @@ class RobotInputLogger(threading.Thread):
             self.join(timeout=1.0)
 
 
-# --- CLASS: Output Data Collector ---
+# Output Data Collector
 class DataCollector(threading.Thread):
     def __init__(self, test_id, target_topic, save_dir): 
         super().__init__()
@@ -124,7 +121,7 @@ class DataCollector(threading.Thread):
                 for tp, messages in msg_pack.items():
                     for msg in messages:
                         record = msg.value
-                        if record:  # Skip None records
+                        if record:
                             record['ts_received'] = int(time.time() * 1000)
                             self.collected_data.append(record)
             
@@ -166,7 +163,7 @@ def cleanup():
     
     print("\n[CLEANUP] Cleaning up processes...")
     
-    # 1. Stop Sensor Generator (Subprocess)
+    # Stop Sensor Generator
     if current_sensor_process:
         if current_sensor_process.poll() is None:
             print("   -> Sending SIGINT to generator...")
@@ -176,13 +173,13 @@ def cleanup():
             except subprocess.TimeoutExpired:
                 current_sensor_process.kill()
 
-    # 2. Stop Output Collector (Thread)
+    # Stop Output Collector
     if current_collector and current_collector.is_alive():
         print("   -> Stopping Output Collector...")
         current_collector.running = False
         current_collector.stop_and_save()
 
-    # 3. Stop Input Logger (Thread) - NEW
+    # Stop Input Logger
     if current_input_logger and current_input_logger.is_alive():
         print("   -> Stopping Input Robot Logger...")
         current_input_logger.stop()
@@ -222,7 +219,7 @@ def run_tests():
         current_input_logger = None
         
         try:
-            # 1. Deploy KSQLDB Config
+            # Deploy KSQLDB Config
             try:
                 deployed_name = ksqldb_manager.deploy_configuration(i)
                 if not deployed_name:
@@ -232,32 +229,32 @@ def run_tests():
                 cleanup()
                 continue
 
-            # 2. Start Data Collector (Output)
+            # Start Data Collector (Output)
             print(f"   [1/4] Starting Data Collectors...")
             current_collector = DataCollector(test_id, dynamic_topic, test_run_dir)
             current_collector.start()
             
-            # 3. Start Input Logger (NEW - For robot_raw.jsonl)
+            # Start Input Logger
             current_input_logger = RobotInputLogger(robot_log_path)
             current_input_logger.start()
 
             time.sleep(2.0)
 
-            # 4. Start Sensor Generator (Only for HUMIDITY 4-6)
+            # Start Sensor Generator (for HUMIDITY 4-6)
             config_type = ksqldb_manager.TEST_CONFIGS_MAP.get(i, {}).get('type')
             if config_type == 'HUMIDITY':
                 print(f"   [2/4] Starting Sensor Generator...")
                 current_sensor_process = subprocess.Popen([
                     sys.executable, 
                     SENSOR_GENERATOR_SCRIPT,
-                    "--robot_log", robot_log_path, # Passed but ignored by script now
+                    "--robot_log", robot_log_path,
                     "--sensor_log", sensor_log_path
                 ])
                 time.sleep(2.0)
             else:
                 print(f"   [2/4] Skipping Sensor Generator (not humidity test)...")
             
-            # 5. Start Robot (ROS Bag)
+            # Start Robot (ROS Bag)
             print(f"   [3/4] Starting Robot...")
             subprocess.run([
                 "docker", "exec", DOCKER_CONTAINER, 

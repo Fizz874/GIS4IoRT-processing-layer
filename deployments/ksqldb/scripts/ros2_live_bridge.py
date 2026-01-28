@@ -40,30 +40,30 @@ class ROS2KafkaBridge(Node):
         self.create_subscription(
             Odometry,
             '/leader/localisation/filtered_odom',
-            lambda msg: self.odom_callback(msg, 'unit1'),
+            lambda msg: self.odom_callback(msg, 'rover1'),
             10)
         
         self.create_subscription(
             Odometry,
             '/follower/localisation/filtered_odom',
-            lambda msg: self.odom_callback(msg, 'unit2'),
+            lambda msg: self.odom_callback(msg, 'rover2'),
             10)
         
         # GPS Subscriptions
         self.create_subscription(
             NavSatFix,
             '/leader/gps/fix',
-            lambda msg: self.gps_callback(msg, 'unit1'),
+            lambda msg: self.gps_callback(msg, 'rover1'),
             10)
         
         self.create_subscription(
             NavSatFix,
             '/follower/gps/fix',
-            lambda msg: self.gps_callback(msg, 'unit2'),
+            lambda msg: self.gps_callback(msg, 'rover2'),
             10)
 
         self.get_logger().info("Bridge is live. Waiting for ROS2 messages...")
-        self.message_count = {'unit1': 0, 'unit2': 0, 'unit1_gps': 0, 'unit2_gps': 0}
+        self.message_count = {'rover1': 0, 'rover2': 0, 'rover1_gps': 0, 'rover2_gps': 0}
 
     # Receives Odometry and publishes to Kafka
     def odom_callback(self, msg, robot_id):

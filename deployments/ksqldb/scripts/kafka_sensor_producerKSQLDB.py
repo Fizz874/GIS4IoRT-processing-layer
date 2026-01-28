@@ -7,7 +7,7 @@ import argparse
 from decimal import Decimal
 from kafka import KafkaProducer
 
-# --- CONFIGURATION ---
+# CONFIGURATION
 KAFKA_BROKER = "localhost:9092"
 TOPIC_OUT_SENSOR = "sensor_proximity"
 CONFIG_FILE = "./scripts/sensor_config_updated.json"
@@ -48,7 +48,6 @@ class DeterministicSensor:
             sys.exit(1)
             
         with open(CONFIG_FILE, 'r') as f:
-            # We only need ID and Location (Lat/Lon)
             return json.load(f)
 
     def get_value_for_step(self, sensor_id, step_index):
@@ -90,35 +89,28 @@ class DeterministicSensor:
                 for s in self.sensors:
                     s_id = s['sensor_id']
                     
-                    # 1. Calculate Value based on Pattern
+                    # Calculate Value based on Pattern
                     humidity_val = self.get_value_for_step(s_id, step_count)
                     
-                    # 2. Construct Payload
-                    # ksqlDB expects: sensor_id, timestamp, position_x, position_y, humidity
+                    # Construct Payload
                     payload = {
-                        "sensor_id": str(s_id), # Explicitly requested in log
+                        "sensor_id": str(s_id),
                         "timestamp": current_ts,
                         "position_x": float(s['lon']),
                         "position_y": float(s['lat']),
                         "humidity": humidity_val
                     }
                     
-                    # 3. Send to Kafka
+                    # Send to Kafka
                     key = str(s_id).encode('utf-8')
-                    # We send a copy without 'sensor_id' inside value if your schema doesn't support it, 
-                    # BUT usually it's safer to include it. 
-                    # If your ksqlDB stream is defined as:
-                    # CREATE STREAM sensor_raw_stream (sensor_id VARCHAR KEY...
-                    # Then it expects the ID in the key, but having it in value is fine too.
                     self.producer.send(TOPIC_OUT_SENSOR, value=payload, key=key)
 
-                    # 4. Log to File (Flush immediately)
+                    # Log to File
                     self.sensor_log_file.write(json.dumps(payload) + "\n")
                     self.sensor_log_file.flush()
                     
                     print(f"   [Sensor {s_id}] Sent: {humidity_val}")
 
-                # Wait for next cycle
                 time.sleep(INTERVAL_SECONDS)
                 step_count += 1
 
@@ -130,12 +122,8 @@ class DeterministicSensor:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    # Arguments kept for compatibility with the test runner, 
-    # even though we don't use robot_log anymore.
     parser.add_argument("--robot_log", default="robots_raw.jsonl") 
     parser.add_argument("--sensor_log", default="sensors_out.jsonl")
     args = parser.parse_args()
-
-    # We ignore robot_log input
     app = DeterministicSensor(args.sensor_log)
     app.run()

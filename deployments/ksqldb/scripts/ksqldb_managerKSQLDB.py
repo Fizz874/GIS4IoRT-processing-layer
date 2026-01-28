@@ -3,16 +3,14 @@ import time
 import json
 import sys
 
-# --- API CONFIGURATION ---
+# API CONFIGURATION
 API_BASE_URL = "http://localhost:8000/ksqldb"
 HEADERS = {"Content-Type": "application/json"}
 
-# ==========================================
-# 1. SCENARIO DEFINITIONS (BUSINESS PAYLOADS)
-# ==========================================
+# SCENARIO DEFINITIONS
 
 SCENARIO_RULES = {
-    # --- ITERATIONS 1-3: GEOFENCE ---
+    # ITERATIONS 1-3: GEOFENCE
     1: {
         "geofences": [
             {"robot_id": "unit1", "zone_id": "1 MONT"},
@@ -32,7 +30,7 @@ SCENARIO_RULES = {
         ]
     },
     
-    # --- ITERATIONS 4-6: HUMIDITY (SENSOR) ---
+    # ITERATIONS 4-6: HUMIDITY (SENSOR)
     4: {
         "sensors": [
             {"sensor_id": "1", "min_humidity": 80.0, "alert_radius_m": 3.0},
@@ -76,7 +74,7 @@ SCENARIO_RULES = {
         ]
     },
 
-    # --- ITERATIONS 7-9: COLLISION ---
+    # ITERATIONS 7-9: COLLISION
     7: {
         "robots": [
             {"robot_id": "unit1"},
@@ -151,9 +149,7 @@ TEST_CONFIGS_MAP = {
     }
 }
 
-# ==========================================
-# 2. CONFIGURATION LOGIC (API Calls)
-# ==========================================
+# CONFIGURATION LOGIC (API Calls)
 
 def configure_geofence_rules(config_name, iteration):
     """Iterates through geofence list and sends to API"""
@@ -184,7 +180,7 @@ def configure_humidity_rules(config_name, iteration):
 
     print(f"   [API] HUMIDITY Configuration: {len(sensors)} sensors, {len(robots)} robots...")
 
-    # A. Register sensors if not already registered (POST /sensors)
+    # Register sensors
     for i, s in enumerate(sensors):
         payload = {
             "sensor_id": s["sensor_id"]
@@ -196,7 +192,7 @@ def configure_humidity_rules(config_name, iteration):
         except Exception as e:
             print(f"      [Sensor {s['sensor_id']}] Critical: {e}")
 
-    # B. Register robots if not already registered
+    # Register robots
     for i, r in enumerate(robots):
         payload = {
             "id": r["robot_id"]
@@ -208,7 +204,7 @@ def configure_humidity_rules(config_name, iteration):
         except Exception as e:
              print(f"      [Robot {r['robot_id']}] Critical: {e}")
 
-    # C. Add humidity rules (POST /humidity-rule)
+    # Add humidity rules
     for i, s in enumerate(sensors):
         payload = {
             "config_name": config_name,
@@ -217,7 +213,7 @@ def configure_humidity_rules(config_name, iteration):
             "alert_radius_m": s["alert_radius_m"]
         }
         try:
-            resp = requests.post(f"{API_BASE_URL}/humidity-rule", json=payload, headers=HEADERS)
+            resp = requests.post(f"{API_BASE_URL}/humidity", json=payload, headers=HEADERS)
             if resp.status_code != 200:
                 print(f"      [Rule {s['sensor_id']}] Error: {resp.text}")
         except Exception as e:
@@ -229,7 +225,7 @@ def configure_collision_rules(config_name, iteration):
     
     print(f"   [API] Configuring COLLISION detection for {len(robots)} robots...")
 
-    # A. Register robots if not already registered
+    # Register robots
     for i, r in enumerate(robots):
         payload = {
             "id": r["robot_id"]
@@ -241,7 +237,7 @@ def configure_collision_rules(config_name, iteration):
         except Exception as e:
             print(f"      [{r['robot_id']}] Critical: {e}")
     
-    # B. Activate collision monitoring
+    # Activate collision monitoring
     print(f"   [API] Activating collision monitoring...")
     payload = {
         "config_name": config_name
@@ -255,9 +251,7 @@ def configure_collision_rules(config_name, iteration):
     except Exception as e:
         print(f"Critical: {e}")
 
-# ==========================================
 # 3. HELPER FUNCTIONS
-# ==========================================
 
 def get_unique_name(iteration_number, config_type):
     return f"iter_{iteration_number:03d}_{config_type}"
@@ -272,7 +266,7 @@ def get_test_metadata(iteration_number):
     if not config:
         return None
 
-    # 1. Calculate Output Topic based on type
+    # Calculate Output Topic based on type
     unique_name = get_unique_name(iteration_number, config['type'])
     
     topic_map = {
@@ -282,7 +276,7 @@ def get_test_metadata(iteration_number):
     }
     output_topic = topic_map.get(config['type'], "robot_geofence_alerts")
 
-    # 2. Build ROS Command
+    # Build ROS Command
     ros_settings = config.get("ros_settings", DEFAULT_ROS_SETTINGS)
     bag_file = ros_settings["bag_file"]
     topics = ros_settings["topics"]
@@ -337,7 +331,7 @@ def cleanup_humidity(config_name, iteration):
             "alert_radius_m": s["alert_radius_m"]
         }
         try:
-            requests.delete(f"{API_BASE_URL}/humidity-rule", json=payload, headers=HEADERS)
+            requests.delete(f"{API_BASE_URL}/humidity", json=payload, headers=HEADERS)
         except:
             pass
 
@@ -353,9 +347,7 @@ def cleanup_collision(config_name, iteration):
     except Exception as e:
         print(f"Deactivation error: {e}")
 
-# ==========================================
 # 4. MAIN DEPLOYMENT FUNCTION
-# ==========================================
 
 def deploy_configuration(iteration_number):
     print(f"\n   [KSQLDB MANAGER] Configuration for iteration #{iteration_number}")

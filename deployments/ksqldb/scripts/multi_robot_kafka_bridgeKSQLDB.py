@@ -13,7 +13,7 @@ class MultiRobotKafkaBridge(Node):
 
         self.declare_parameter('robot_list', ['leader', 'follower'])
         self.declare_parameter('kafka_bootstrap_servers', 'broker:29092')
-        self.declare_parameter('kafka_topic', 'ros_gps_fix')  # Changed topic name
+        self.declare_parameter('kafka_topic', 'ros_gps_fix')
 
         self.robot_list = self.get_parameter('robot_list').get_parameter_value().string_array_value
         self.kafka_servers = self.get_parameter('kafka_bootstrap_servers').get_parameter_value().string_value
@@ -54,10 +54,9 @@ class MultiRobotKafkaBridge(Node):
             self.get_logger().warn(f"Skipping NaN GPS from {robot_name}")
             return
 
-        # Use current time for timestamp (same as ros2_live_bridge.py)
+        # Use current time for timestamp
         timestamp_ms = int(time.time() * 1000)
 
-        # KSQLDB format: timestamp, latitude, longitude, altitude
         payload = {
             'timestamp': timestamp_ms,
             'latitude': msg.latitude,
@@ -69,7 +68,7 @@ class MultiRobotKafkaBridge(Node):
             self.producer.send(
                 self.target_kafka_topic, 
                 value=payload, 
-                key=robot_name  # Use robot_name as key for KSQLDB
+                key=robot_name
             )
             
         except Exception as e:
