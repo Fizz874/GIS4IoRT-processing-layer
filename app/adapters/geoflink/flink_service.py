@@ -13,6 +13,10 @@ from asyncio import Lock
 
 logger = logging.getLogger("uvicorn.info")
 
+# Flink Job Lifecycle Orchestrator.
+# This service manages the interaction between the FastAPI application and the Apache Flink cluster.
+# It handles job submission (JAR execution), status monitoring, and graceful cancellation.
+
 
 class FlinkService:
     def __init__(self, jar_name: str, base_url="http://localhost:8082"):

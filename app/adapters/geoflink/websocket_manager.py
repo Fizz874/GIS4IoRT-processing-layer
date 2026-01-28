@@ -5,6 +5,9 @@ import json
 
 logger = logging.getLogger("uvicorn.info")
 
+# WebSocket Connection and Pub/Sub Manager.
+# This module handles real-time communication between the server and multiple clients.
+
 class ConnectionManager:
     def __init__(self):
         self.subscriptions: Dict[str, List[WebSocket]] = {}

@@ -6,8 +6,12 @@ from .kafka_service import kafka_service
 from .flink_service import get_flink_service
 from .schemas import ZoneCreate
 
-
 logger = logging.getLogger("uvicorn.info")
+
+# System State Recovery and Synchronization Service.
+# This module is responsible for reconciling the local database state with the Apache Flink cluster 
+# and Kafka infrastructure after an application restart
+
 
 async def restore_application_state():
     configs = database.get_all_configs()

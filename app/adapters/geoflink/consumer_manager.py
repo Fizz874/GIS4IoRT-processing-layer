@@ -9,6 +9,9 @@ logger = logging.getLogger("uvicorn.info")
 
 logging.getLogger("aiokafka").setLevel(logging.CRITICAL)
 
+# Kafka Consumer Manager for WebSocket Broadcasting.
+# This module manages background Kafka consumers using aiokafka.
+
 class ConsumerManager:
     def __init__(self):
         self.active_tasks = {}

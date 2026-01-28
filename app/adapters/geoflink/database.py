@@ -9,7 +9,6 @@ DB_NAME = settings.GEOFLINK_DB_NAME
 logger = logging.getLogger("uvicorn.info")
 
 def get_connection():
-    """Tworzy połączenie z włączonymi Foreign Keys i Row Factory"""
     conn = sqlite3.connect(DB_NAME)
     conn.execute("PRAGMA foreign_keys = ON")
     conn.row_factory = sqlite3.Row

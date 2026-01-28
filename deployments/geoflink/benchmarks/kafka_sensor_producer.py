@@ -8,11 +8,16 @@ from decimal import Decimal, getcontext
 from kafka import KafkaConsumer, KafkaProducer
 import argparse
 
+# IoT Sensor Proximity Simulator and Heartbeat Generator.
+# This script simulates a network of environmental sensors (e.g., humidity) that respond to robot proximity.
+# It also logs robot telemetry records
+
+
 # --- CONFIGURATION ---
 KAFKA_BROKER = "localhost:9092"
 TOPIC_IN_ROBOT = "multi_gps_fix"
 TOPIC_OUT_SENSOR = "sensor_proximity"
-CONFIG_FILE = os.getenv('SENSOR_CONFIG', r"C:\Users\filip\Documents\Filip\Programowanie\java-projects\GEOFlink\api\deployments\geoflink\docker\data\sensor_config_updated.json") 
+CONFIG_FILE = os.getenv('SENSOR_CONFIG', r"../docker/data/sensor_config_updated.json") 
 TARGET_ROBOT_ID = "follower"
 
 TARGET_FREQUENCY_HZ = 2.0 

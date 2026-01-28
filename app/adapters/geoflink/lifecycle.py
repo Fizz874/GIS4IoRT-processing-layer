@@ -9,6 +9,7 @@ from .recovery_service import restore_application_state
 
 logger = logging.getLogger("uvicorn.info")
 
+# Manages the global startup and shutdown sequences of the Geoflink module.
 
 @asynccontextmanager
 async def geoflink_lifespan(app: FastAPI):

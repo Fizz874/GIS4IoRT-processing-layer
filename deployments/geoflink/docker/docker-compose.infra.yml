@@ -1,6 +1,11 @@
 # RUN INSTRUCTION:
 # docker-compose -f docker-compose.infra.yml up -d --build
 
+# Monitoring Dashboards
+# Flink Dashboard:  http://localhost:8082  (Cluster and job monitoring)
+# Kafka UI:         http://localhost:8090  (Topics, messages, and broker inspection)
+# API Docs:         http://localhost:8000/docs  (Swagger/OpenAPI documentation)
+
 
 name: geoflink-infra
 services:
@@ -12,12 +17,9 @@ services:
         broker:
           condition: service_healthy
       ports:
-        - "8082:8081"  #UI:  http://localhost:8082/
+        - "8082:8081" 
       volumes:
         - ./data:/data
-
-      # volumes:
-      #   - ./../../SpatialFlink/conf:/opt/flink/conf
       command: jobmanager
       environment:
         - |
@@ -30,8 +32,6 @@ services:
       - jobmanager
     volumes:
       - ./data:/data
-    # volumes:
-    #   - ./../../SpatialFlink/conf:/opt/flink/conf
     command: taskmanager
     scale: 3
     environment:
@@ -101,33 +101,18 @@ services:
       timeout: 5s
       retries: 5
 
-  schema-registry:
-      image: confluentinc/cp-schema-registry:latest
-      hostname: schema-registry
-      #container_name: schema-registry
-      depends_on:
-        broker:
-          condition: service_healthy
-      ports:
-        - "8081:8081"
-      environment:
-        SCHEMA_REGISTRY_HOST_NAME: schema-registry
-        SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: 'broker:29092'
-        SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
-
   kafka-ui:
       image: provectuslabs/kafka-ui:latest
       hostname: kafka-ui
-      #container_name: kafka-ui
+
       ports:
         - "8090:8080"
       depends_on:
         - broker
-        - schema-registry
       environment:
         KAFKA_CLUSTERS_0_NAME: local
-        KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: broker:29092 #9092
-        KAFKA_CLUSTERS_0_SCHEMAREGISTRY: http://schema-registry:8081
+        KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: broker:29092 
+
 
   #api
   geoflink-api:

@@ -8,6 +8,9 @@ from aiokafka.errors import TopicAlreadyExistsError
 
 logger = logging.getLogger("uvicorn.error")
 
+# Kafka Communication and Infrastructure Service.
+# This service manages the lifecycle of the AIOKafkaProducer and handles low-level Kafka operations.
+
 class KafkaService:
     def __init__(self):
         self.producer = None

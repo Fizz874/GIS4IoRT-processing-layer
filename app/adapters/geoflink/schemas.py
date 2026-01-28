@@ -1,8 +1,11 @@
 from pydantic import BaseModel, Field, model_validator, validator
-from typing import List, Literal, Union, Optional
+from typing import List, Literal, Union, Optional, Annotated
 import re
 import json
 import base64
+
+# Data Schemas and Configuration Models.
+# This module defines the core data structures using Pydantic for the GeoFlink API.
 
 class BaseJobConfig(BaseModel):
     name: str
@@ -20,12 +23,15 @@ class GeofenceConfig(BaseJobConfig):
     type: Literal["GEOFENCE"]
     cellLengthMeters: float = Field(default=0, ge=0)
     uniformGridSize: int = Field(default=100, ge=0)
-    gridMinX: float = 3.430
-    gridMinY: float = 46.336
-    gridMaxX: float = 3.436
-    gridMaxY: float = 46.342
-    inputTopicName: str = "multi_gps_fix"
-    range: float = Field(default=0.0000001, gt=0)
+    gridMinX: float 
+    gridMinY: float 
+    gridMaxX: float 
+    gridMaxY: float 
+    inputTopicName: str = Field(
+        default="multi_gps_fix", 
+        description="Kafka topic for robot telemetry"
+    )
+    range: float = Field(default=0.00000000001, gt=0)
 
     @model_validator(mode='after')
     def check_coordinates(self):
@@ -76,13 +82,19 @@ class SensorProximityConfig(BaseJobConfig):
     
     cellLengthMeters: float = Field(default=0, ge=0)
     uniformGridSize: int = Field(default=100, ge=0)
-    gridMinX: float = 3.430
-    gridMinY: float = 46.336
-    gridMaxX: float = 3.436
-    gridMaxY: float = 46.342
+    gridMinX: float
+    gridMinY: float
+    gridMaxX: float 
+    gridMaxY: float 
 
-    inputTopicName: str = "multi_gps_fix" 
-    sensorTopicName: str = "sensor_proximity"   
+    inputTopicName: str = Field(
+        default="multi_gps_fix", 
+        description="Kafka topic for robot telemetry"
+    )
+    sensorTopicName: str = Field(
+        default="sensor_proximity", 
+        description="Kafka topic for sensor readings"
+    )
     
     @model_validator(mode='after')
     def check_coordinates(self):
@@ -129,12 +141,15 @@ class CollisionDetectionConfig(BaseJobConfig):
     
     cellLengthMeters: float = Field(default=0, ge=0)
     uniformGridSize: int = Field(default=100, ge=0)
-    gridMinX: float = 3.430
-    gridMinY: float = 46.336
-    gridMaxX: float = 3.436
-    gridMaxY: float = 46.342
+    gridMinX: float
+    gridMinY: float
+    gridMaxX: float
+    gridMaxY: float
 
-    inputTopicName: str = "multi_gps_fix" 
+    inputTopicName: str = Field(
+        default="multi_gps_fix", 
+        description="Kafka topic for robot telemetry"
+    )
 
     collisionThreshold: float = Field(
         default=1.5, 
@@ -143,7 +158,7 @@ class CollisionDetectionConfig(BaseJobConfig):
     )
     robotStateTtlMillis: int = Field(
         default=5000, 
-        ge=1000, 
+        ge=1, 
         description="Time to live for robot state (milliseconds)"
     )
     robotAlertCooldownMillis: int = Field(
@@ -195,7 +210,10 @@ class CollisionDetectionConfig(BaseJobConfig):
         return "GIS4IoRT.jobs.CollisionDetectionStreamingJob"
 
 
-JobConfigUnion = Union[GeofenceConfig, SensorProximityConfig, CollisionDetectionConfig]
+JobConfigUnion = Annotated[
+    Union[GeofenceConfig, SensorProximityConfig, CollisionDetectionConfig],
+    Field(discriminator="type")
+]
 
 # geofence
 class GeofenceRequest(BaseModel):
@@ -205,7 +223,6 @@ class GeofenceRequest(BaseModel):
 
 
 # sensor proximity
-
 class RobotRequest(BaseModel):
     config_name: str = Field(..., min_length=1)
     robot_id: str = Field(..., min_length=1)
