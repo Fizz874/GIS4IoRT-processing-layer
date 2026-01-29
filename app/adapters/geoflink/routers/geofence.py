@@ -83,7 +83,7 @@ async def add_geofence_rule(
         await kafka.send_zone(zone_obj, topic)
 
     
-    await kafka.send_robot_assignment(
+    await kafka.send_geofence_assignment(
         robot_id=data.robot_id, 
         zone_ids=[data.zone_id], 
         topic=topic
@@ -135,7 +135,7 @@ async def remove_geofence_rule(
         logger.info(f"Sending removal signals to Kafka topic: {topic}")
 
         
-        await kafka.send_robot_unassignment(
+        await kafka.send_geofence_unassignment(
         robot_id=data.robot_id, 
         zone_ids=[data.zone_id], 
         topic=topic

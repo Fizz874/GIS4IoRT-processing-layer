@@ -44,18 +44,27 @@ async def deregister_robot(
 
     for item in active_assignments:
         config_name = item['config_name']
+        assignment_type = item['type']
         configs_to_check.add(config_name)
         
         state = database.get_config_state(config_name)
         if state:
             topic = state['control_topic']
             
-            if topic not in sent_topics:
-                logger.info(f"Sending robot ban signal to topic: {topic}")
-                await kafka.send_robot_ban(robot_id, topic)
+            if topic and topic not in sent_topics:
+                logger.info(f"Sending ban signal to topic: {topic} (Type: {assignment_type})")
+                
+                if assignment_type == 'GEOFENCE':
+                    await kafka.send_geofence_ban(robot_id, topic)
+                elif assignment_type == 'SENSOR':
+                    await kafka.send_robot_unassignment(robot_id, topic)
+                
                 sent_topics.add(topic)
 
+        if assignment_type == 'GEOFENCE':
             database.remove_geofence_assignment(robot_id, item['zone_id'], config_name)
+        elif assignment_type == 'SENSOR':
+            database.remove_robot_assignment(robot_id, config_name)
 
     database.delete_robot(robot_id)
 

@@ -8,6 +8,9 @@ from aiokafka.errors import TopicAlreadyExistsError
 
 logger = logging.getLogger("uvicorn.error")
 
+# Kafka Communication and Infrastructure Service.
+# This service manages the lifecycle of the AIOKafkaProducer and handles low-level Kafka operations.
+
 class KafkaService:
     def __init__(self):
         self.producer = None
@@ -95,7 +98,7 @@ class KafkaService:
         finally:
             await admin.close()
     
-    async def send_robot_assignment(self, robot_id: str, zone_ids: list[str], topic: str):
+    async def send_geofence_assignment(self, robot_id: str, zone_ids: list[str], topic: str):
 
         if not zone_ids:
             return 
@@ -105,7 +108,7 @@ class KafkaService:
         
         return await self._send_message(msg, topic)
 
-    async def send_robot_unassignment(self, robot_id: str, zone_ids: list[str], topic: str):
+    async def send_geofence_unassignment(self, robot_id: str, zone_ids: list[str], topic: str):
         if not zone_ids:
             return
 
@@ -114,8 +117,8 @@ class KafkaService:
         
         return await self._send_message(msg, topic)
 
-    # Bans robot from all his assignments
-    async def send_robot_ban(self, robot_id: str, topic: str):
+    # Bans robot from all his  geofence assignments
+    async def send_geofence_ban(self, robot_id: str, topic: str):
         msg = f"ROBOT:BLOCK:{robot_id}"
         return await self._send_message(msg, topic)
 
@@ -128,6 +131,23 @@ class KafkaService:
         msg = f"ZONE:DELETE:{zone_id}"
         return await self._send_message(msg, topic)
 
+    # sensor proximity
+    async def send_sensor_assignment(self, sensor_id: str, radius: float, threshold: float, topic: str):
+        msg = f"SENSOR:ADD:{sensor_id}:{radius}:{threshold}"
+        return await self._send_message(msg, topic)
+
+    async def send_sensor_unassignment(self, sensor_id: str, topic: str):
+        msg = f"SENSOR:REMOVE:{sensor_id}"
+        return await self._send_message(msg, topic)
+
+    # robot whitelist
+    async def send_robot_assignment(self, robot_id: str, topic: str):
+        msg = f"ROBOT:ALLOW:{robot_id}"
+        return await self._send_message(msg, topic)
+
+    async def send_robot_unassignment(self, robot_id: str, topic: str):
+        msg = f"ROBOT:BLOCK:{robot_id}"
+        return await self._send_message(msg, topic)
 
 kafka_service = KafkaService()
 
