@@ -190,9 +190,6 @@ def remove_all_geofence_assignments_for_robot(robot_id: str):
         )
         logger.info(f"NUCLEAR RESET: Removed all geofence assignments for {robot_id}")
 
-
-
-
 # SPEED ASSIGNMENTS
 
 def add_speed_assignment(robot_id: str, config_name: str):

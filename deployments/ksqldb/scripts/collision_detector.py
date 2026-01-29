@@ -197,7 +197,7 @@ class CollisionDetector:
 
     def calculate_distance(self, lat1, lon1, lat2, lon2) -> float:
         """Calculate distance between two GPS coordinates using Haversine formula"""
-        R = 6371000  # Earth radius in meters
+        R = 6371000  # Earth radius
         
         phi1 = math.radians(lat1)
         phi2 = math.radians(lat2)
@@ -329,19 +329,19 @@ class CollisionDetector:
         
         try:
             while True:
-                # 1. Process Control Messages
+                # Process Control Messages
                 control_messages = self.control_consumer.poll(timeout_ms=10, max_records=50)
                 for tp, messages in control_messages.items():
                     for message in messages:
                         self.process_control_message(message)
                 
-                # 2. Process Registry Updates
+                # Process Registry Updates
                 registry_messages = self.registry_consumer.poll(timeout_ms=10, max_records=50)
                 for tp, messages in registry_messages.items():
                     for message in messages:
                         self.process_registry_message(message)
                 
-                # 3. Process GPS Updates (only if monitoring is enabled)
+                # Process GPS Updates (only if monitoring is enabled)
                 if self.collision_monitoring_enabled:
                     gps_batch = self.gps_consumer.poll(timeout_ms=50)
                     
@@ -353,7 +353,7 @@ class CollisionDetector:
                                 if self.update_robot_position(message):
                                     data_received_in_this_tick = True
                     
-                    # 4. Trigger Collision Check
+                    # Trigger Collision Check
                     if data_received_in_this_tick:
                         self.check_collisions()
                 

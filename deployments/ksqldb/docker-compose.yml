@@ -1,9 +1,7 @@
----
 services:
-
   # Kafka Broker with KRaft
   broker:
-    image: confluentinc/cp-kafka:latest
+    image: confluentinc/cp-kafka:8.0.0
     container_name: broker
     hostname: broker
     ports:
@@ -40,7 +38,7 @@ services:
 
   # Schema Registry
   schema-registry:
-    image: confluentinc/cp-schema-registry:latest
+    image: confluentinc/cp-schema-registry:8.0.0
     hostname: schema-registry
     container_name: schema-registry
     depends_on:
@@ -53,10 +51,9 @@ services:
       SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: 'broker:29092'
       SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
 
-
   # Create Kafka topics
   kafka-setup:
-    image: confluentinc/cp-kafka:latest
+    image: confluentinc/cp-kafka:8.0.0
     hostname: kafka-setup
     container_name: kafka-setup
     depends_on:
@@ -102,11 +99,10 @@ services:
         
         echo 'Topics created and Shards seeded successfully.'
       "
-  #     kafka-topics --create --if-not-exists --topic geofence_control --bootstrap-server broker:29092 --partitions 2 --replication-factor 1 --config cleanup.policy=compact --config min.cleanable.dirty.ratio=0.01 &&
 
   # ksqlDB Server (Headless Mode)
   ksqldb-server:
-    image: confluentinc/ksqldb-server:latest
+    image: confluentinc/ksqldb-server:0.29.0
     hostname: ksqldb-server
     container_name: ksqldb-server
     ports:
@@ -126,38 +122,12 @@ services:
       KSQL_KSQL_LOGGING_PROCESSING_TOPIC_REPLICATION_FACTOR: 1
       KSQL_KSQL_LOGGING_PROCESSING_TOPIC_AUTO_CREATE: 'true'
       KSQL_KSQL_LOGGING_PROCESSING_STREAM_AUTO_CREATE: 'true'
-
       KSQL_KSQL_EXTENSION_DIR: "/opt/ksqldb-udfs"
       KSQL_CONFIG_FILE: "/etc/ksqldb/ksql-server.properties"
-      KSQL_KSQL_QUERIES_FILE: "/opt/ksql-setup.sql" #jeśli interactive zakomentować
+      KSQL_KSQL_QUERIES_FILE: "/opt/ksql-setup.sql"
     volumes:
       - ./ksql-setup.sql:/opt/ksql-setup.sql
-      - ./udf/build/libs/gis-udf-1.0.0.jar:/opt/ksqldb-udfs/gis-udf.jar # - ./ksql-server.properties:/etc/ksqldb/ksql-server.properties
-    #jeśli interactive odkomentować healthcheck:
-    #healthcheck:
-    #  test: "curl -f http://localhost:8088/info || exit 1"
-    #  interval: 10s
-    #  timeout: 5s
-    #  retries: 10
-
-  #jeśli interactive odkomentować:
-  # ksqlDB setup
-  #ksqldb-setup:
-  #  image: confluentinc/ksqldb-cli:latest
-  #  container_name: ksqldb-setup
-  #  depends_on:
-  #    ksqldb-server:
-  #      condition: service_healthy
-  #  volumes:
-  #    - ./ksql-setup.sql:/opt/ksql-setup.sql
-  #  command: >
-  #    bash -c "
-  #      echo 'Waiting for ksqlDB to be ready...' &&
-  #      sleep 5 &&
-  #      echo 'Running ksqlDB setup...' &&
-  #      ksql http://ksqldb-server:8088 --file /opt/ksql-setup.sql &&
-  #      echo 'ksqlDB setup complete!'
-  #    "
+      - ./udf/build/libs/gis-udf-1.0.0.jar:/opt/ksqldb-udfs/gis-udf.jar
 
 # ros2_bridge service
   ros2_bridge:
@@ -177,7 +147,7 @@ services:
     stdin_open: true
 
   kafka-ui:
-    image: provectuslabs/kafka-ui:latest
+    image: provectuslabs/kafka-ui:v0.7.2
     hostname: kafka-ui
     container_name: kafka-ui
     ports:
@@ -190,25 +160,6 @@ services:
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: broker:29092
       KAFKA_CLUSTERS_0_SCHEMAREGISTRY: http://schema-registry:8081
 
-#  dispatcher:
-#    image: ros2-kafka-dispatcher:local
-#    container_name: kafka_dispatcher
-#    depends_on:
-#      broker:
-#        condition: service_healthy
-#    volumes:
-#      # Keep your bags volume so you can still play data!
-#      - ../bags:/bags
-#    environment:
-#      - ROS_DOMAIN_ID=0
-#    # Launch the dispatcher and point it to your existing broker service
-#    command: >
-#      ros2 launch ros2_kafka_dispatcher_bringup system_minimal.launch.py 
-#      selection_mode:=all 
-#      kafka.bootstrap_servers:=broker:29092
-
-
-
   api:
     build:
       context: .
@@ -218,10 +169,8 @@ services:
     depends_on:
       broker:
         condition: service_healthy
-      ksqldb-server: #jeśli interactive zakomentować ksqldb-server
+      ksqldb-server:
         condition: service_started
-#      ksqldb-setup: #jeśli interactive odkomentować ksqldb-setup
-#        condition: service_completed_successfully
     ports:
       - "8000:8000"
     environment:
@@ -252,7 +201,6 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: "broker:29092"
     command: python3 /scripts/collision_detector.py
     restart: unless-stopped
-
 
   # Python environment for producer and consumers
   python-env:

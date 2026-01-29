@@ -21,7 +21,6 @@ api_env/
 
 #bags
 **/rorbots_follower_leader_parcelle_1MONT_ros2/
-deployments/bags/
+#deployments/bags/
 
-#ksqldb
 **/otherscripts/
