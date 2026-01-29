@@ -17,7 +17,10 @@ class Settings(BaseSettings):
     ROSBAG_PATH: str = "/bags/rorbots_follower_leader_parcelle_1MONT_ros2"
     
     # nebulastream
-    # TODO: Add NebulaStream config
+    NES_COORDINATOR_IP: str = "127.0.0.1"
+    NES_COORDINATOR_REST_PORT: int = 8081
+    QUERY_HOST_IP: str = "127.0.0.1"
+    QUERY_HOST_MQTT_PORT: int = 9001
     
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -1,0 +1,19 @@
+FROM gradle:8.5-jdk17 AS builder
+
+WORKDIR /home/gradle/project
+
+COPY query/HumidityQuery/settings.gradle.kts query/HumidityQuery/build.gradle.kts ./
+
+RUN gradle dependencies --no-daemon || return 0
+
+COPY query/HumidityQuery/src ./src
+
+RUN gradle clean shadowJar --no-daemon
+
+FROM eclipse-temurin:17-jre
+
+WORKDIR /app
+
+COPY --from=builder /home/gradle/project/build/libs/*-all.jar app.jar
+
+ENTRYPOINT ["java", "-jar", "app.jar"]

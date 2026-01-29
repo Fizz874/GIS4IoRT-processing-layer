@@ -1,0 +1,13 @@
+coordinatorHost: 127.0.0.1 # MACHINE_IP
+coordinatorPort: 4000
+localWorkerHost: 127.0.0.1 # MACHINE_IP
+workerId: 5
+logLevel: LOG_WARNING
+
+physicalSources:
+  - logicalSourceName: soil_humidity
+    physicalSourceName: sensors
+    type: MQTT_SOURCE
+    configuration:
+      url: ws://127.0.0.1:9001 # MACHINE_IP:9001
+      topic: humidity_producer

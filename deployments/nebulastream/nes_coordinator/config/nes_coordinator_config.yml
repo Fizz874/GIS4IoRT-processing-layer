@@ -1,0 +1,24 @@
+logicalSources:
+  - logicalSourceName: gps_position
+    fields:
+      - name: timestamp
+        type: UINT64
+      - name: robot_name
+        type: TEXT
+      - name: position_x
+        type: FLOAT64
+      - name: position_y
+        type: FLOAT64
+
+  - logicalSourceName: soil_humidity
+    fields:
+      - name: timestamp
+        type: UINT64
+      - name: sensor_id
+        type: UINT64
+      - name: position_x
+        type: FLOAT64
+      - name: position_y
+        type: FLOAT64
+      - name: humidity
+        type: FLOAT64

@@ -1,0 +1,27 @@
+services:
+
+  mosquitto:
+    image: eclipse-mosquitto
+    network_mode: host
+    volumes:
+      - ./config:/mosquitto/config
+
+  ros2_mqtt:
+    build:
+      context: .
+      dockerfile: config/Dockerfile.bridge
+    network_mode: host
+    volumes:
+      - ./scripts:/scripts
+    command: [ "python3", "/scripts/ros2_mqtt.py", "${MQTT_IP}", "${MQTT_PORT}", "${ROBOT_NAME}", "${ROS2_TOPIC}", "${MQTT_TOPIC}" ]
+    env_file: .env
+
+  ros2_play:
+    build:
+      context: .
+      dockerfile: config/Dockerfile.bridge
+    network_mode: host
+    volumes:
+      - ../ros2_bags:/bags
+    command: [ "ros2", "bag", "play", "/bags/${ROBOT_NAME}" ]
+    env_file: .env

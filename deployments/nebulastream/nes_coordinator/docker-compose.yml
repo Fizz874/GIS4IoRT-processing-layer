@@ -1,0 +1,19 @@
+services:
+
+  nes_coordinator:
+    image: nebulastream/nes-executable-image:latest
+    network_mode: host
+    volumes:
+      - ./config:/config
+    command:
+      - nesCoordinator
+      - --coordinatorHost=${NES_COORDINATOR_IP}
+      - --restIp=${NES_COORDINATOR_IP}
+      - --restPort=${NES_COORDINATOR_REST_PORT}
+      - --rpcPort=${NES_COORDINATOR_RPC_PORT}
+      - --worker.coordinatorHost=${NES_COORDINATOR_IP}
+      - --worker.coordinatorPort=${NES_COORDINATOR_RPC_PORT}
+      - --worker.localWorkerHost=${NES_COORDINATOR_IP}
+      - --logLevel=LOG_WARNING
+      - --configPath=/config/nebulastream/nes_coordinator_config.yml
+    env_file: .env
