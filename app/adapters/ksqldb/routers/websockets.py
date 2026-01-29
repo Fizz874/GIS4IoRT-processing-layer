@@ -25,7 +25,7 @@ async def websocket_endpoint(websocket: WebSocket):
             return
             
         target_config = data.get("config_name")
-        monitor_type = data.get("type", "geofence")  # "geofence" or "speed"
+        monitor_type = data.get("type", "geofence")
         
         if not target_config:
             await websocket.send_json({"error": "config_name is required"})
@@ -34,7 +34,9 @@ async def websocket_endpoint(websocket: WebSocket):
         # pick topic based on type
         topic_map = {
             "geofence": "robot_geofence_alerts",
-            "speed": "robot_speed_alerts"
+            "speed": "robot_speed_alerts",
+            "humidity": "robot_humidity_alerts",
+            "collision": "robot_collision_alerts"
         }
         
         topic = topic_map.get(monitor_type, "robot_geofence_alerts")
@@ -75,19 +77,28 @@ async def websocket_endpoint(websocket: WebSocket):
                     continue
                 
                 payload = json.loads(msg.value.decode('utf-8'))
-                active_configs_str = payload.get("ACTIVE_CONFIGS", "")
-                
-                if not active_configs_str:
-                    continue
-                
-                active_configs_list = active_configs_str.split("|")
-                
-                if target_config in active_configs_list:
-                    try:
-                        await websocket.send_json(payload)
-                    except Exception:
-                        is_connected = False
-                        break
+
+
+                if monitor_type == "humidity":
+                    await websocket.send_json(payload)
+                    
+                elif monitor_type == "collision":
+                    await websocket.send_json(payload)
+
+                else:
+                    active_configs_str = payload.get("ACTIVE_CONFIGS", "")
+                    
+                    if not active_configs_str:
+                        continue
+                    
+                    active_configs_list = active_configs_str.split("|")
+                    
+                    if target_config in active_configs_list:
+                        try:
+                            await websocket.send_json(payload)
+                        except Exception:
+                            is_connected = False
+                            break
                     
             except json.JSONDecodeError as e:
                 logger.error(f"Invalid JSON: {e}")

@@ -4,7 +4,7 @@ venv/
 .venv/
 api_env/
 
-*.db
+#*.db
 *.sqlite
 *.db3
 
@@ -12,8 +12,8 @@ api_env/
 .idea/
 
 .gradle/
-build/
-*.jar
+#build/
+#*.jar
 *.class
 !nes_collision.jar
 !nes_geofence.jar
@@ -24,6 +24,6 @@ build/
 
 #bags
 **/rorbots_follower_leader_parcelle_1MONT_ros2/
+#deployments/bags/
 
-#ksqldb
 **/otherscripts/

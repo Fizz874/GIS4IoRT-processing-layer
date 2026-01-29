@@ -38,13 +38,7 @@ async def add_geofence_rule(
     CONTROL_TOPIC = "geofence_control"
     
     if data.robot_id:
-        await kafka.send_robot_allow(
-            data.robot_id, 
-            CONTROL_TOPIC, 
-            composite_hex,
-            composite_configs
-        )
-        
+        await kafka.send_robot_allow(data.robot_id, CONTROL_TOPIC, composite_hex, composite_configs)
     return {
         "status": "assigned", 
         "robot_id": data.robot_id,
@@ -85,12 +79,7 @@ async def remove_geofence_rule(
         composite_configs = "|".join(config_list)
         
         # Send new state with ON flag
-        await kafka.send_robot_allow(
-            data.robot_id,
-            CONTROL_TOPIC,
-            composite_hex,
-            composite_configs
-        )
+        await kafka.send_robot_allow(data.robot_id, CONTROL_TOPIC, composite_hex, composite_configs)
         current_status = f"ON (updated: {composite_configs})"
 
     return {

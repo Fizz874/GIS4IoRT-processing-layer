@@ -1,14 +1,13 @@
 FROM python:3.9-slim
 
-# Install system dependencies
+# System dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
     python3-dev \
     curl \
     && rm -rf /var/lib/apt/lists/*
-    #librdkafka-dev
 
-# Install Python packages from PyPI via pip
+# Python packages
 RUN pip3 install \
     kafka-python \
     requests \
@@ -18,19 +17,11 @@ RUN pip3 install \
     websocket-client \
     shapely \
     utm
-    #confluent-kafka \
-    #orjson \
-    #attrs \
-    #httpx \
-    #certifi \
-    #cachetools \
-    #authlib \
-    #fastavro
 
-# Create necessary directories
+# Directories
 RUN mkdir -p /scripts /bags
 
-# Set working directory
+# Working directory
 WORKDIR /scripts
 
 # Keep container running

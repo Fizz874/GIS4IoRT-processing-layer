@@ -1,9 +1,7 @@
----
 services:
-
   # Kafka Broker with KRaft
   broker:
-    image: confluentinc/cp-kafka:latest
+    image: confluentinc/cp-kafka:8.0.0
     container_name: broker
     hostname: broker
     ports:
@@ -40,7 +38,7 @@ services:
 
   # Schema Registry
   schema-registry:
-    image: confluentinc/cp-schema-registry:latest
+    image: confluentinc/cp-schema-registry:8.0.0
     hostname: schema-registry
     container_name: schema-registry
     depends_on:
@@ -55,7 +53,7 @@ services:
 
   # Create Kafka topics
   kafka-setup:
-    image: confluentinc/cp-kafka:latest
+    image: confluentinc/cp-kafka:8.0.0
     hostname: kafka-setup
     container_name: kafka-setup
     depends_on:
@@ -76,13 +74,35 @@ services:
         kafka-topics --create --if-not-exists --topic geofence_control --bootstrap-server broker:29092 --partitions 2 --replication-factor 1 --config retention.ms=-1 &&
 
         kafka-topics --create --if-not-exists --topic robot_geofence_alerts --bootstrap-server broker:29092 --partitions 2 --replication-factor 1 --config retention.ms=3600000 &&
+        kafka-topics --create --if-not-exists --topic speed_control --bootstrap-server broker:29092 --partitions 2 --replication-factor 1 --config retention.ms=-1 &&
 
-        echo 'Topics created successfully.'
+
+
+        kafka-topics --create --if-not-exists --topic sensor_proximity --bootstrap-server broker:29092 --partitions 2 --replication-factor 1 --config retention.ms=-1 &&
+        kafka-topics --create --if-not-exists --topic humidity_control --bootstrap-server broker:29092 --partitions 2 --replication-factor 1 --config retention.ms=-1 &&
+        kafka-topics --create --if-not-exists --topic robot_humidity_alerts --bootstrap-server broker:29092 --partitions 2 --replication-factor 1 --config retention.ms=3600000 &&
+
+        kafka-topics --create --if-not-exists --topic collision_control --bootstrap-server broker:29092 --partitions 1 --replication-factor 1 --config retention.ms=-1 &&
+        kafka-topics --create --if-not-exists --topic robot_collision_alerts --bootstrap-server broker:29092 --partitions 2 --replication-factor 1 --config retention.ms=3600000 &&
+
+
+        kafka-topics --create --if-not-exists --topic robot_registration --bootstrap-server broker:29092 --partitions 2 --replication-factor 1 --config cleanup.policy=compact &&
+        kafka-topics --create --if-not-exists --topic sensor_registration --bootstrap-server broker:29092 --partitions 2 --replication-factor 1 --config cleanup.policy=compact &&
+
+        # SHARD SETUP
+        # 1. Create Compacted Topic
+        #kafka-topics --create --if-not-exists --topic shard_list --bootstrap-server broker:29092 --partitions 1 --replication-factor 1 --config cleanup.policy=compact &&
+        
+        # 2. Seed Data (Using grouped echo to avoid indentation issues)
+        #echo 'Seeding shard_list...' &&
+        #(echo '0:{\"shard_id\":0, \"dummy_link\":1}' && echo '1:{\"shard_id\":1, \"dummy_link\":1}') | kafka-console-producer --bootstrap-server broker:29092 --topic shard_list --property 'parse.key=true' --property 'key.separator=:' &&
+        
+        echo 'Topics created and Shards seeded successfully.'
       "
-  
+
   # ksqlDB Server (Headless Mode)
   ksqldb-server:
-    image: confluentinc/ksqldb-server:latest
+    image: confluentinc/ksqldb-server:0.29.0
     hostname: ksqldb-server
     container_name: ksqldb-server
     ports:
@@ -103,33 +123,11 @@ services:
       KSQL_KSQL_LOGGING_PROCESSING_TOPIC_AUTO_CREATE: 'true'
       KSQL_KSQL_LOGGING_PROCESSING_STREAM_AUTO_CREATE: 'true'
       KSQL_KSQL_EXTENSION_DIR: "/opt/ksqldb-udfs"
-      KSQL_CONFIG_FILE: "/etc/ksqldb/ksql-server.properties" #KSQL_KSQL_QUERIES_FILE: "/opt/ksql-setup.sql"
+      KSQL_CONFIG_FILE: "/etc/ksqldb/ksql-server.properties"
+      KSQL_KSQL_QUERIES_FILE: "/opt/ksql-setup.sql"
     volumes:
       - ./ksql-setup.sql:/opt/ksql-setup.sql
-      - ./udf/build/libs/gis-udf-1.0.0.jar:/opt/ksqldb-udfs/gis-udf.jar # - ./ksql-server.properties:/etc/ksqldb/ksql-server.properties
-    healthcheck:
-      test: "curl -f http://localhost:8088/info || exit 1"
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
-  # ksqlDB setup
-  ksqldb-setup:
-    image: confluentinc/ksqldb-cli:latest
-    container_name: ksqldb-setup
-    depends_on:
-      ksqldb-server:
-        condition: service_healthy
-    volumes:
-      - ./ksql-setup.sql:/opt/ksql-setup.sql
-    command: >
-      bash -c "
-        echo 'Waiting for ksqlDB to be ready...' &&
-        sleep 5 &&
-        echo 'Running ksqlDB setup...' &&
-        ksql http://ksqldb-server:8088 --file /opt/ksql-setup.sql &&
-        echo 'ksqlDB setup complete!'
-      "
+      - ./udf/build/libs/gis-udf-1.0.0.jar:/opt/ksqldb-udfs/gis-udf.jar
 
 # ros2_bridge service
   ros2_bridge:
@@ -148,6 +146,20 @@ services:
     tty: true
     stdin_open: true
 
+  kafka-ui:
+    image: provectuslabs/kafka-ui:v0.7.2
+    hostname: kafka-ui
+    container_name: kafka-ui
+    ports:
+      - "8090:8080"
+    depends_on:
+      - broker
+      - schema-registry
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: broker:29092
+      KAFKA_CLUSTERS_0_SCHEMAREGISTRY: http://schema-registry:8081
+
   api:
     build:
       context: .
@@ -157,8 +169,8 @@ services:
     depends_on:
       broker:
         condition: service_healthy
-      ksqldb-setup:
-        condition: service_completed_successfully
+      ksqldb-server:
+        condition: service_started
     ports:
       - "8000:8000"
     environment:
@@ -172,6 +184,23 @@ services:
     restart: always
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
 
+# Collision Detection Service
+  collision-detector:
+    build:
+      context: .
+      dockerfile: Dockerfile.python
+    container_name: collision-detector
+    depends_on:
+      broker:
+        condition: service_healthy
+      kafka-setup:
+        condition: service_completed_successfully
+    volumes:
+      - ./scripts:/scripts
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: "broker:29092"
+    command: python3 /scripts/collision_detector.py
+    restart: unless-stopped
 
   # Python environment for producer and consumers
   python-env:
@@ -186,7 +215,7 @@ services:
         condition: service_started
     volumes:
       - ./scripts:/scripts
-      - ./bags:/bags
+      - ../bags:/bags
     environment:
       KAFKA_BOOTSTRAP_SERVERS: "broker:29092"
     tty: true

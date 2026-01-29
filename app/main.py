@@ -57,7 +57,9 @@ elif ACTIVE_ADAPTER == "ksqldb":
         geofence as ksqldb_geofence,
         speed as ksqldb_speed,
         historical as ksqldb_historical,
-        websockets as ksqldb_websockets
+        websockets as ksqldb_websockets,
+        humidity as ksqldb_humidity,
+        collision as ksqldb_collision
     )
     
     app.include_router(ksqldb_robots.router, prefix="/ksqldb")
@@ -66,6 +68,8 @@ elif ACTIVE_ADAPTER == "ksqldb":
     app.include_router(ksqldb_speed.router, prefix="/ksqldb")
     app.include_router(ksqldb_historical.router, prefix="/ksqldb")
     app.include_router(ksqldb_websockets.router, prefix="/ksqldb")
+    app.include_router(ksqldb_humidity.router, prefix="/ksqldb")
+    app.include_router(ksqldb_collision.router, prefix="/ksqldb")
 
 elif ACTIVE_ADAPTER == "nebulastream":
     from app.adapters.nebulastream.routers import router as nebulastream_router
