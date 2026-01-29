@@ -14,12 +14,16 @@ import flink_manager
 
 # Runs GeoFlink architecture benchmarks.
 # Benchmark query configuration lives in flink_manager.py.
-# Topic names are configured in kafka_sensor_producer.py for telemetry logging and sensor signal generation.
+# kafka_sensor_producer.py is used for telemetry logging and sensor signal generation.
 
 # --- CONFIGURATION ---
 ITERATIONS = 1
+START_ITERATION = 1  # index of the first setup scenario to execute
 OUTPUT_DIR = "test_results"
 KAFKA_BROKER = "localhost:9092"
+
+INPUT_TOPIC = "multi_gps_fix"
+SENSOR_TOPIC = "sensor_proximity"
 
 # Docker & Script Paths
 DOCKER_CONTAINER = "ros_bridge"
@@ -129,6 +133,37 @@ def cleanup():
         current_collector.running = False
         current_collector.stop_and_save()
 
+def wait_for_kafka_topic(topic, timeout=60):
+    print(f"   [CHECK] Ensuring Kafka topic '{topic}' is fully initialized...")
+    start = time.time()
+
+    try:
+        subprocess.run(
+            ["docker", "exec", "kafka-broker", "kafka-topics", "--bootstrap-server", "broker:29092",
+             "--create", "--if-not-exists", "--topic", topic],
+            capture_output=True, text=True
+        )
+    except:
+        pass
+
+    while True:
+        result = subprocess.run(
+            ["docker", "exec", "kafka-broker", "kafka-topics", "--bootstrap-server", "broker:29092",
+             "--describe", "--topic", topic],
+            capture_output=True, text=True
+        )
+
+        if "Partition:" in result.stdout and "Leader:" in result.stdout:
+            print(f"   [CHECK] Topic '{topic}' is ready and has partitions assigned.")
+            return True
+
+        if time.time() - start > timeout:
+            print(f"   [ERROR] Timeout waiting for topic '{topic}'.")
+            print(f"   [DEBUG] Kafka describe output: {result.stdout}")
+            return False
+
+        time.sleep(2)
+        
 
 def run_tests():
     global current_sensor_process, current_collector
@@ -138,7 +173,7 @@ def run_tests():
 
     print(f"=== STARTING TESTS (Ctrl+C to abort all) ===")
 
-    for i in range(1, ITERATIONS + 1):
+    for i in range(START_ITERATION, ITERATIONS + START_ITERATION):
         
         # Retrieve dynamic config from manager
         meta = flink_manager.get_test_metadata(i)
@@ -148,6 +183,7 @@ def run_tests():
             continue
 
         test_id = meta['config_name']
+        test_type = meta['config_type']
         dynamic_topic = meta['output_topic']
         dynamic_ros_cmd = meta['ros_cmd']
 
@@ -165,6 +201,9 @@ def run_tests():
         current_collector = None
 
         try:
+            wait_for_kafka_topic(INPUT_TOPIC)
+            wait_for_kafka_topic(SENSOR_TOPIC)
+
             # Deploy Flink Job
             try:
                 deployed_name = flink_manager.deploy_configuration(i)
@@ -188,7 +227,10 @@ def run_tests():
                 sys.executable,
                 SENSOR_GENERATOR_SCRIPT,
                 "--robot_log", robot_log_path,
-                "--sensor_log", sensor_log_path
+                "--sensor_log", sensor_log_path,
+                "--test_type", test_type,
+                "--robot_topic", INPUT_TOPIC,
+                "--sensor_topic", SENSOR_TOPIC,
             ])
 
             time.sleep(2.0)

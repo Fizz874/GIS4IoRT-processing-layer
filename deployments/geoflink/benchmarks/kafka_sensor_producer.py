@@ -15,8 +15,6 @@ import argparse
 
 # --- CONFIGURATION ---
 KAFKA_BROKER = "localhost:9092"
-TOPIC_IN_ROBOT = "multi_gps_fix"
-TOPIC_OUT_SENSOR = "sensor_proximity"
 CONFIG_FILE = os.getenv('SENSOR_CONFIG', r"../docker/data/sensor_config_updated.json") 
 TARGET_ROBOT_ID = "follower"
 
@@ -27,7 +25,7 @@ MIN_INTERVAL_MS = 1000.0 / TARGET_FREQUENCY_HZ
 getcontext().prec = 50
 
 class ProductionSensor:
-    def __init__(self, robot_log_path, sensor_log_path):
+    def __init__(self, robot_log_path, sensor_log_path, test_type,input_topic, sensor_topic):
         print(f"[INFO] Starting Sensors (Exact Match + Heartbeat {TARGET_FREQUENCY_HZ}Hz)")
         self.running = True
         
@@ -35,7 +33,12 @@ class ProductionSensor:
         signal.signal(signal.SIGTERM, self.handle_exit)
         
         self.robot_log_file = open(robot_log_path, "a", encoding="utf-8")
-        self.sensor_log_file = open(sensor_log_path, "a", encoding="utf-8")
+        self.test_type = test_type
+        if self.test_type == 'SENSOR':
+            self.sensor_log_file = open(sensor_log_path, "a", encoding="utf-8")
+        
+        self.topic_in_robot = input_topic
+        self.topic_out_sensor = sensor_topic
 
         def decimal_serializer(obj):
             if isinstance(obj, Decimal):
@@ -48,7 +51,7 @@ class ProductionSensor:
         )
 
         self.consumer = KafkaConsumer(
-            TOPIC_IN_ROBOT,
+            self.topic_in_robot,
             bootstrap_servers=KAFKA_BROKER,
             value_deserializer=lambda x: json.loads(x.decode('utf-8'), parse_float=Decimal),
             auto_offset_reset='latest', 
@@ -127,7 +130,7 @@ class ProductionSensor:
 
                         self.robot_log_file.write(json.dumps(payload, default=str) + "\n")
 
-                        if payload.get('id') != TARGET_ROBOT_ID: continue 
+                        if self.test_type != 'SENSOR' or payload.get('id') != TARGET_ROBOT_ID: continue 
                         
                         lat, lon, ts = payload['lat'], payload['lon'], payload['ts']
 
@@ -168,7 +171,7 @@ class ProductionSensor:
                                     "humidity": val
                                 }
                                 key = str(s['sensor_id']).encode('utf-8')
-                                self.producer.send(TOPIC_OUT_SENSOR, value=out, key=key)
+                                self.producer.send(self.topic_out_sensor, value=out, key=key)
                                 self.sensor_log_file.write(json.dumps(out, default=str) + "\n")
                                 s['prev_val'] = val
                                 s['last_sent_ts'] = ts
@@ -182,7 +185,8 @@ class ProductionSensor:
             traceback.print_exc()
         finally:
             self.robot_log_file.close()
-            self.sensor_log_file.close()
+            if self.test_type == 'SENSOR':
+                self.sensor_log_file.close()
             try:
                 self.producer.flush()
                 self.producer.close()
@@ -194,7 +198,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--robot_log", default="robots_raw.jsonl")
     parser.add_argument("--sensor_log", default="sensors_out.jsonl")
+    parser.add_argument("--test_type", default="SENSOR")
+    parser.add_argument("--robot_topic", default="multi_gps_fix")
+    parser.add_argument("--sensor_topic", default="sensor_proximity")
     args = parser.parse_args()
 
-    app = ProductionSensor(args.robot_log, args.sensor_log)
+    app = ProductionSensor(args.robot_log, args.sensor_log, args.test_type, args.robot_topic, args.sensor_topic)
     app.run()

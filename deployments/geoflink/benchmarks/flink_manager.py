@@ -147,7 +147,7 @@ SCENARIO_RULES = {
 }
 
 DEFAULT_ROS_SETTINGS = {
-    "bag_file": "/app/data/files/leader_follower/leader_follower.db3",
+    "bag_file": "/app/data/leader_follower/leader_follower.db3",
     "topics": "/leader/gps/fix /follower/gps/fix"
 }
 
@@ -181,21 +181,21 @@ TEST_CONFIGS_MAP = {
         **TEMPLATE_COLLISION,
         "ros_settings": {
             # Override for collision scenarios
-            "bag_file": "/app/data/files/leader_inv_follower/leader_inv_follower.db3",
+            "bag_file": "/app/data/leader_inv_follower/leader_inv_follower.db3",
             "topics": "/leader/gps/fix /follower/gps/fix"
         }
     },
     8: {
         **TEMPLATE_COLLISION,
         "ros_settings": {
-            "bag_file": "/app/data/files/leader_inv_follower/leader_inv_follower.db3",
+            "bag_file": "/app/data/leader_inv_follower/leader_inv_follower.db3",
             "topics": "/leader/gps/fix /follower/gps/fix"
         }
     },
     9: {
         **TEMPLATE_COLLISION,
         "ros_settings": {
-            "bag_file": "/app/data/files/leader_inv_follower/leader_inv_follower.db3",
+            "bag_file": "/app/data/leader_inv_follower/leader_inv_follower.db3",
             "topics": "/leader/gps/fix /follower/gps/fix"
         }
     }
@@ -295,14 +295,15 @@ def get_test_metadata(iteration_number):
 
     ros_cmd = (
         "source /opt/ros/jazzy/setup.bash && "
-        f"ros2 bag play {bag_file} --rate 5.0 "
+        f"ros2 bag play {bag_file} --rate 1.0 "
         f"--topics {topics}"
     )
 
     return {
         "config_name": unique_name,
         "output_topic": output_topic,
-        "ros_cmd": ros_cmd
+        "ros_cmd": ros_cmd,
+        "config_type": config['type']
     }
 
 # Teardown existing job to ensure clean state

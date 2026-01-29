@@ -41,7 +41,7 @@ services:
         taskmanager.numberOfTaskSlots: 2    
 
   jar-uploader:
-    image: curlimages/curl:latest
+    image: curlimages/curl:8.18.0
     container_name: jar-uploader
     depends_on:
       - jobmanager
@@ -65,8 +65,8 @@ services:
 
   # Kafka Broker with KRaft (no Zookeeper)
   broker:
-    image: confluentinc/cp-kafka:latest
-    #container_name: broker
+    image: confluentinc/cp-kafka:7.7.7
+    container_name: kafka-broker
     hostname: broker
     ports:
       - "9092:9092"
@@ -102,7 +102,7 @@ services:
       retries: 5
 
   kafka-ui:
-      image: provectuslabs/kafka-ui:latest
+      image: provectuslabs/kafka-ui:v0.7.2
       hostname: kafka-ui
 
       ports:

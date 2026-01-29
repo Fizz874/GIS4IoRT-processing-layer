@@ -21,6 +21,12 @@ services:
       - /tmp/.X11-unix:/tmp/.X11-unix
     command: rviz2 -d /root/.rviz2/parcelles_gps.rviz
 
+    healthcheck:
+      test: ["CMD", "bash", "-c", "pgrep rviz2 > /dev/null"]
+      interval: 3s
+      timeout: 2s
+      retries: 5
+
   multi_kafka_bridge:
     build: ./kafka_bridge
     network_mode: host
@@ -35,6 +41,9 @@ services:
     build: ./visualizer
     network_mode: host
     container_name: ros_visualizer
+    depends_on:
+      rviz:
+        condition: service_healthy
     volumes: 
       - ./data:/app/data
       - ./visualizer/multi_marker_painter.py:/app/multi_marker_painter.py
@@ -45,13 +54,13 @@ services:
 #Rosbag player should be run separately from the other containers
 #use either:
 
-  # docker exec -it ros_visualizer bash
+  # docker exec -it ros_bridge bash
   # source /opt/ros/jazzy/setup.bash
   # ros2 bag play /app/data/plots/plots.db3 --rate 10 --topics /leader/gps/fix /follower/gps/fix
 
 #or
 
-# docker exec -it ros_visualizer bash -c "source /opt/ros/jazzy/setup.bash && ros2 bag play /app/data/plots/plots.db3 --rate 10 --topics /leader/gps/fix /follower/gps/fix"
+# docker exec -it ros_bridge bash -c "source /opt/ros/jazzy/setup.bash && ros2 bag play /app/data/plots/plots.db3 --rate 10 --topics /leader/gps/fix /follower/gps/fix"
 
 #or
 
