@@ -1,4 +1,4 @@
-# GIS4IoRT - GeoFlink Stream Processing Module
+# GeoFlink for GIS4IoRT Chist-Era Project
 
 > **Part of the thesis:** Architecture for Integrating Robotic Devices: Design, Implementation, Experimental Evaluation
 
@@ -6,7 +6,7 @@ This module implements the **real-time stream processing architecture** based on
 
 ---
 
-## Usage Guide
+## Usage
 
 Follow the steps below to deploy the infrastructure, run visualizations, and execute processing benchmarks.
 
