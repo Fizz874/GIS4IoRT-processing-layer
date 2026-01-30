@@ -22,7 +22,7 @@ START_ITERATION = 1  # index of the first setup scenario to execute
 OUTPUT_DIR = "test_results"
 KAFKA_BROKER = "localhost:9092"
 
-INPUT_TOPIC = "multi_gps_fix"
+INPUT_TOPIC = "multi_gps_fix"  # must match the topic name configured in the Kafka bridge component
 SENSOR_TOPIC = "sensor_proximity"
 
 # Docker & Script Paths

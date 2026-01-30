@@ -16,7 +16,7 @@ import argparse
 # --- CONFIGURATION ---
 KAFKA_BROKER = "localhost:9092"
 CONFIG_FILE = os.getenv('SENSOR_CONFIG', r"../docker/data/sensor_config_updated.json") 
-TARGET_ROBOT_ID = "follower"
+TARGET_ROBOT_ID = "follower" # id of the tracked robot - necessary for SWITCH behaviour
 
 TARGET_FREQUENCY_HZ = 2.0 
 MIN_INTERVAL_MS = 1000.0 / TARGET_FREQUENCY_HZ 
